@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<!----------------------------------------------------------------------------
+   Copyright 2016 IBM Corp. All Rights Reserved.
+   
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+   
+        http://www.apache.org/licenses/LICENSE-2.0
+        
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+------------------------------------------------------------------------------>
+<html>
+    <head>
+        <title>IoT for Automotive</title>
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+        <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.1.1/css/bootstrap.min.css" />
+        <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.1.1/css/bootstrap-theme.min.css" />
+        <link rel="stylesheet" href="/stylesheets/style.css"/>
+        
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.1.1//js/bootstrap.min.js"></script>
+    </head>
+    <body>
+        <div class="bluemix-bar">
+            <span>IoT for Automotive Starter Experience</span>
+        </div>
+        <div class="main-section gray-background">
+            <div class="container">
+                <h2 >What would you like to explore?</h2>
+                <section class="col-xs-12 col-md-10 content">
+                    <div class="col-xs-12 col-sm-6 explore-info">
+                        <div name="selection-box-1" class="col-md-9 selection-box active">
+                            <img src="/images/iphone.svg"/>
+                            <h3 class="section-info">Play</h3>
+                            <p>Play with this IoT Automotive Starter app.</p>
+                        </div>
+                    </div>
+                    <div class="col-xs-12 col-sm-6 explore-info">
+                        <div name="selection-box-2" class="col-md-9 selection-box">
+                            <img src="/images/Bluemix+Driver-behavior-icon.png"/>
+                            <h3>Create</h3>
+                            <p>Deploy your own instance of IoT Automotive Starter app to Bluemix.</p>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+        <div name="instruction-selection-box-1" class="main-section arrow-section instruction-box">
+            <div class="container">
+                <section class="col-xs-12 col-md-10 content">
+                    <div class="col-xs-12 col-md-6 image-box">
+                    <video width="300" height="500" controls>
+                    	<source src="/movies/automotive-starter.mp4" type="video/mp4">
+                    	Your browser does not support the video tag.
+                    </video>    
+                    </div>
+                    <div class="col-xs-12 col-md-6 explain">
+                        <p>You will experience a simulation of how Tom, an automobile owner and driver, can use a mobile app to rent a car provided by an automotive company. This new type of service will help the automotive company attract and retain customers. The design of future cars and services can be based on this new sources of customer and vehicle data.</p>
+                        <p>You will use a mobile app on an iOS phone and experience how Tom can find an available car located near him and reserve the car. You will experience how Tom can review his driving behavior, which is analyzed by Driver Behavior service on Bluemix.</p>
+                    </div>
+                </section>
+            </div>
+        </div>
+
+        <div name="instruction-selection-box-1" class="main-section gray-background arrow-section instruction-box">
+            <div class="container"><h2 ><img src="/images/Install_Step1.svg"/>
+                Install the mobile app on an iOS phone</h2>
+                <section class="col-xs-12 col-md-10 content">
+                    <div class="col-xs-12 col-md-5">
+                        <img class="mobile-image" src="/images/iphone.svg"/>
+                    </div>
+                    <div class="col-xs-12 col-md-7 instructions-section">
+                        <div class="install-info">
+                            <h3>Follow <a href="https://github.com/ibm-watson-iot/iota-starter-carsharing/blob/master/README.md" target="_blank">these instructions</a>.</h3>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+ 
+        <div name="instruction-selection-box-1" class="main-section arrow-section instruction-box">
+            <div class="container"><h2 ><img src="/images/Install_Step2.svg"/>
+                In the mobile app on your phone, you'll be asked to scan QR Codes</h2>
+                <section class="col-xs-12 col-md-10 content">
+                        <div class="selection-code">
+                            <img src="/admin/qr/getPlatformCredentials"/>
+                            <p>The first time you use your mobile app on your phone, you'll be asked to scan this code to connect your mobile app to the platform.</p>
+                        </div>
+                </section>
+            </div>
+        </div>
+
+        <div name="instruction-selection-box-2" class="main-section instruction-box hidden">
+            <div class="container"><h2 ><img src="/images/Install_Step1.svg"/>
+                Deploy your own instance of IoT Automotive Starter app to Bluemix</h2>
+                <section class="col-xs-12 col-md-10 content">
+                    <div class="col-xs-12 col-md-5">
+                        <img src="/images/Bluemix+Driver-behavior-icon.png"/>
+                    </div>
+                    <div class="col-xs-12 col-md-7 instructions-section">
+                        <div class="install-info">
+                            <h3>Follow <a href="https://github.com/ibm-watson-iot/iota-starter-server/blob/master/README.md" target="_blank">these instructions</a></h3>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+
+        <a class="ibm-top-link hidden" aria-label="Back to top" href="#top" tabindex="0">Back to top</a>
+        <script src="/js/index.js"></script>
+
+    </body>
+</html>

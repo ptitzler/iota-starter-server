@@ -1,0 +1,53 @@
+{
+ "devicesSchemas": [
+    {
+      "guid": "bcc910d67af944e5a1851bb948ba5586",
+      "name": "ConnectedCarDevice",
+      "mqttOutputs": [
+        {
+          "name": "sendGeoPos",
+          "qos": "1",
+          "payload": "lat,lng,name,status",
+          "pattern": {
+            "rate": 1,
+            "type": "Periodic"
+          }
+        },
+         {
+          "name": "registerVehicle",
+          "qos": "1",
+          "payload": "name,license",
+          "pattern": {
+            "rate": 1,
+            "type": "OnChange"
+          }
+        }
+      ],
+      "attributes": [
+        {
+          "name": "name"
+        },
+        {
+          "name": "lat"
+        },
+        {
+          "name": "lng"
+        },
+        {
+          "name": "status",
+          "defaultValue": "Locked"
+        },
+        {
+          "name": "license"
+        }
+      ],
+      "simulation": {
+        "onConnectedCode": null,
+        "onInitCode": null,
+        "onMessageReceptionCode": "if(message == \"lock\"){\n  this.status = \"Locked\";\n  \n}\nelse if(message == \"unlock\"){\n  this.status = \"Unlocked\";  \n}",
+        "onRunningCode": null,
+        "onRunningPeriodSec": "1"
+      }
+    }
+  ]
+  }

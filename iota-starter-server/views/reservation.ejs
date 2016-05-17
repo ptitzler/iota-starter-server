@@ -1,0 +1,141 @@
+<!----------------------------------------------------------------------------
+   Copyright 2016 IBM Corp. All Rights Reserved.
+   
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+   
+        http://www.apache.org/licenses/LICENSE-2.0
+        
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+------------------------------------------------------------------------------>
+<html>
+<head>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
+
+<script>
+function newReservation(){
+	var carId = $("#carId").val();
+	var pickupTime = $("#pickupTime").val();
+	var dropOffTime = $("#dropOffTime").val();
+
+	$.ajax({
+	    type: 'POST',
+	    url: "/user/reservation",
+	    data: {carId: carId, pickupTime: pickupTime, dropOffTime: dropOffTime},
+	    dataType: 'json'
+	}).done(function(data, status, xhr){
+		$("#reserveid").val(data.reservationId)
+		$("#result").html(JSON.stringify(data, null, 2));
+	}).fail(function(error){
+		alert(JSON.stringify(error));
+	}); 	
+}
+
+function getReservation(){
+	var reserveid = $("#reserveid").val();
+	
+	$.ajax({
+	    type: 'GET',
+	    url: "/user/reservation/"+reserveid
+	}).done(function(data, status, xhr){
+		$("#result").html(JSON.stringify(data, null, 2));
+	}).fail(function(error){
+		alert(JSON.stringify(error));
+	}); 	
+}
+
+function closeReservation(){
+	var reserveid = $("#reserveid").val();
+	
+	$.ajax({
+	    type: 'PUT',
+	    url: "/user/reservation/"+reserveid,
+	    data: {carId: "aaa", pickupTime: 1231312, dropOffTime: 23421421, status: "close"},
+	    dataType: 'json'
+	}).done(function(data, status, xhr){
+		$("#result").html(JSON.stringify(data, null, 2));
+	}).fail(function(error){
+		alert(JSON.stringify(error));
+	}); 	
+}
+
+function getReservations(activeOnly){
+	var url = activeOnly ? "/user/activeReservations" : "/user/reservation";
+	$.ajax({
+	    type: 'GET',
+	    url: url
+	}).done(function(data, status, xhr){
+		$("#result").html(JSON.stringify(data, null, 2));
+	}).fail(function(error){
+		alert(JSON.stringify(error));
+	}); 
+}
+
+function carControl(lock){
+	var reservationId = $("#reserveid").val();
+	var url = "/user/carControl";
+	$.ajax({
+	    type: 'POST',
+	    url: url,
+	    data: {reservationId: reservationId, command: lock ? "LOCK" : "UNLOCK"},
+	    dataType: 'json'
+	}).done(function(data, status, xhr){
+		$("#result").html(JSON.stringify(data, null, 2));
+	}).fail(function(error){
+		alert(JSON.stringify(error));
+	}); 
+}
+
+function onUnlock() {
+	carControl(false);
+}
+
+function onGetReservations(){
+	var activeOnly = $("#activeOnly").prop('checked');
+	getReservations(activeOnly);
+}
+
+$(document).ready(function(){
+	$("#pickupTime").val("10000000");
+	$("#dropOffTime").val("20000000");
+	
+	getReservations(false);
+
+});
+</script>
+
+</head>
+<body>
+<h1>Reservation Management</h1>
+
+<h2>My Reservations</h2>
+<div>
+	Active Only: <input type="checkbox" id="activeOnly"></input><br/>
+	<button onclick="onGetReservations()">Get</button>
+</div>
+
+<h2>New Reservation</h2>
+<div>
+	Car ID: <input type="text" id="carId"><br/>
+	Pickup Time: <input type="text" id="pickupTime"><br/>
+	DropOff Time: <input type="text" id="dropOffTime"><br/>
+	<button onclick="newReservation()">New reservation</button>
+</div>
+
+<h2>Reservation</h2>
+<div>
+	Reservation ID: <input type="text" id="reserveid"></input><br/>
+	<button onclick="getReservation()">Get</button>
+	<button onclick="onUnlock()">Unlock</button>
+	<button onclick="closeReservation()">Complete</button>
+</div>
+<hr/>
+<h2>Results</h2>
+<div id="result" style="white-space: pre;"></div>
+</body>
+</html>

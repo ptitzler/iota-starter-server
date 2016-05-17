@@ -1,0 +1,49 @@
+{"templates":
+[
+  {
+    "makeModel": "Honda Accord",
+    "year": 2013,
+    "mileage": 80000,
+    "stars": 5,
+    "hourlyRate": 18,
+    "dailyRate": 44,
+    "thumbnailURL": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/%2713_Honda_Accord_Sedan.JPG/320px-%2713_Honda_Accord_Sedan.JPG"
+  },
+  {
+    "makeModel": "Volkswagen Tiguan",
+    "year": 2013,
+    "mileage": 113000,
+    "stars": 3,
+    "hourlyRate": 10,
+    "dailyRate": 35,
+    "thumbnailURL": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/2010_Volkswagen_Tiguan_S_--_04-24-2010.jpg/320px-2010_Volkswagen_Tiguan_S_--_04-24-2010.jpg"
+  },
+  {
+    "makeModel": "Toyota Highlander",
+    "year": 2008,
+    "mileage": 97000,
+    "stars": 4,
+    "hourlyRate": 20,
+    "dailyRate": 55,
+    "thumbnailURL": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/%2708_Toyota_Highlander_Sport.JPG/320px-%2708_Toyota_Highlander_Sport.JPG"
+  },
+  {
+    "makeModel": "Jeep Wrangler",
+    "year": 2007,
+    "mileage": 60000,
+    "stars": 4,
+    "hourlyRate": 15,
+    "dailyRate": 40,
+    "thumbnailURL": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/Jeep_Wrangler_Unlimited_JK_%28Remax%29.JPG/320px-Jeep_Wrangler_Unlimited_JK_%28Remax%29.JPG"
+  },
+  {
+    "makeModel": "Volkswagen Jetta",
+    "year": 2012,
+    "mileage": 30000,
+    "stars": 2,
+    "hourlyRate": 12,
+    "dailyRate": 34,
+    "thumbnailURL": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/2012_Volkswagen_Jetta_GLI_--_05-24-2012.JPG/320px-2012_Volkswagen_Jetta_GLI_--_05-24-2012.JPG"
+  }
+]
+}
