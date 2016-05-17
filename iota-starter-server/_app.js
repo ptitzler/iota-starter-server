@@ -358,7 +358,10 @@ devicesCache.reserveDevices = function(deviceType, numOfDevices){
 					deferred.resolve(reservation);
 				})['catch'](function(err){
 					console.error(err);
-					deferred.reject(err);
+					deferred.reject({
+						status: 500, 
+						message: 'Failed to create new demo car devices: ' + (err.message || (err.data && err.data.message) || 'see console log for the details')
+					});
 				});
 		return deferred.promise;
 	}

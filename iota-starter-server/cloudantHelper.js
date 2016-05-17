@@ -64,11 +64,14 @@ cloudantHelper.createOrUpdateDevice = function(device){
 		var db = cloudant.db.use(CLOUDANT_DB_NAME);
 		db.get(devID,null,function(err,body) {
 			if (!err){
-				body[updateTime] = device;
-				db.insert(body,null,function(err, body){
-					if (err)
-						console.error("!!!!!!!!error inserting " + devID + " err = " + err + " body = " + body);
-				});
+				if(!_.isEqual(body[updateTime], device)){
+					body[updateTime] = device;
+					db.insert(body,null,function(err, body){
+						if (err){
+							console.error("!!!!!!!!error inserting " + devID + " err = " + err + " body = " + body);
+						}
+					});
+				}
 			}else if (err.error == 'not_found'){
 				var deviceDetails = cloudantHelper.onGettingNewDeviceDetails(device);
 				if (deviceDetails){
