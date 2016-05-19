@@ -59,11 +59,10 @@ To do this, you can either use the _Deploy to Bluemix_ button for an automated d
   $ cf create-service driverinsights free DriverBehavior
   ```
 
-8. This app uses Cloudant NoSQL DB and Mobile Client Access services as well. Create the services in Bluemix.
+8. This app uses Cloudant NoSQL DB service as well. Create the services in Bluemix.
 
   ```
   $ cf create-service cloudantNoSQLDB Shared MobilityDB
-  $ cf create-service AdvancedMobileAccess Gold AdvancedMobileAccess
   ```
 
 9. Push the app to Bluemix. You need to perform additional steps when it is deployed, so you must add the option --no-start argument.
@@ -150,7 +149,7 @@ DISABLE_DEMO_CAR_DEVICES=true
           "stars": <score in number(0-5)>,
           "hourlyRate": <hourly rate in number>,
           "dailyRate": <daily rate in number>,
-          "thumbnailURL": "<URL to your car image>"
+          "thumbnailURL": "<secure URL to your car image>"
        }
      }
    }

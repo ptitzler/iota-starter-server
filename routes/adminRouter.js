@@ -26,9 +26,8 @@ var appEnv = require("cfenv").getAppEnv();
 var IOTF = require('../watsonIoT');
 var connectedDevices = require('../workbenchLib').connectedDevicesCache;
 var driverInsightsAnalyze = require('../driverInsights/analyze');
+var driverInsightsTripRoutes = require('../driverInsights/tripRoutes.js');
 var dbClient = require('../cloudantHelper.js');
-var simulationImporterCtor = require('../devicesSimulation/simulationImporter.js');
-var simulationImporter = new simulationImporterCtor();
 
 var ADMIN_USER     = "ADMIN";
 var ADMIN_PASSWORD = "ADMIN";
@@ -53,10 +52,7 @@ var authenticate = function(req,res,next){
  * Get the QR Code image for mobile app to connect to platform
  */
 adminRouter.get('/qr/getPlatformCredentials', /*authenticate,*/ function(req, res) {
-	var route = appEnv.url;
-	var guid = VCAP_SERVICES['AdvancedMobileAccess'][0]['credentials'].clientId;
-	
-	var text = ['1', route, guid].join(',');
+	var text = ['1', appEnv.url].join(',');
 	
 	var img = qr.image(text, { type: 'png', ec_level: 'H', size: 3, margin: 0 });
 	res.writeHead(200, {'Content-Type': 'image/png'})
@@ -114,7 +110,7 @@ adminRouter.get('/driverInsights/behaviors', authenticate, function(req, res) {
 });
 
 adminRouter.get('/tripId', authenticate, function(req, res) {
-	res.send(simulationImporter.getTripIdList());
+	res.send(driverInsightsTripRoutes.getTripIdList());
 });
 
 /**

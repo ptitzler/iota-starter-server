@@ -24,23 +24,19 @@ var request = require('request');
 var xml2js = require('xml2js');
 var moment = require('moment');
 var uuid = require('node-uuid')
-var Cloudant = require('cloudant');
 var debug = require('debug')('simulationImporter');
 debug.log = console.log.bind(console);
 
 var driverInsightsProbe = require('../driverInsights/probe');
 var driverInsightsAnalyze = require('../driverInsights/analyze');
+var driverInsightsTripRoutes = require('../driverInsights/tripRoutes.js');
 var dbClient = require('../cloudantHelper.js');
 
-var cloudantCreds = VCAP_SERVICES.cloudantNoSQLDB[0].credentials;
 
 var IMPORT = process.env.IMPORT ? new Boolean(process.env.IMPORT) : true;
 var MAX_NUM_OF_REQUESTING = new Number(process.env.MAX_NUM_OF_REQUESTING || 10);
 var requestQueue = [];
 var requesting = 0;
-
-var db = null;
-var tripIdCache = [];
 
 function simulationImporter(config) {
 	if (!(this instanceof simulationImporter)) {
@@ -51,40 +47,6 @@ function simulationImporter(config) {
 	this.simulationConfig = {sessionid: (config.sessionid)?config.sessionid:null, devicesSchemas: [], devices: []};
 	if(config.simulationConfigFile)
 		this.loadSimulation(config.simulationConfigFile);
-
-	var deferred = Q.defer();
-	db = deferred.promise;
-	/*
-	 * Database "trip_routes" stores route array for each trip_id
-	 * document = {routes: {lat: "-90 ~ 90", lng: "-180 ~ 180", ts: "timestamp in mill", id: "device id", trip_id: "uuid", ...}
-	 */
-	Cloudant(cloudantCreds.url, function(err, cloudant) {
-		debug('Connected to Cloudant')
-
-		cloudant.db.list(function(err, all_dbs) {
-			if (all_dbs.indexOf("trip_routes") < 0) {
-				// first time -- need to create the iotzone-devices database
-				console.log("creating DB trip_routes");
-				cloudant.db.create("trip_routes", function() {
-					deferred.resolve(cloudant.use("trip_routes"));
-					console.log("created DB trip_routes");
-				});
-			} else {
-				console.log("found DB trip_routes");
-				var targetDb = cloudant.use('trip_routes');
-				deferred.resolve(targetDb);
-				// cache trip_id
-				targetDb.list(function(err, body) {
-					if (!err) {
-						tripIdCache = tripIdCache.concat(body.rows.map(function(doc){
-							return doc.id;
-						}));
-						console.log("tripIdCache:" + JSON.stringify(tripIdCache));
-					}
-				});	
-			}
-		})
-	})
 };
 //Inherit functions from `EventEmitter`'s prototype
 util.inherits(simulationImporter, EventEmitter);
@@ -138,7 +100,7 @@ simulationImporter.prototype.loadFcdSimulation = function(fcdDataPath){
 				});
 			});
 
-			_insertTripRoutes(tripRoutes);
+			driverInsightsTripRoutes.insertTripRoutes(tripRoutes);
 		});
 	});
 };
@@ -179,32 +141,8 @@ simulationImporter.prototype.loadJsonSimulation = function(jsonDataPath){
 
 			_handleTimestep(payload, tripRoutes);
 		});
-		_insertTripRoutes(tripRoutes);
+		driverInsightsTripRoutes.insertTripRoutes(tripRoutes);
 	});
-};
-
-simulationImporter.prototype.getTripIdList = function(){
-	return tripIdCache;
-};
-
-simulationImporter.prototype.getTripLocation = function(trip_id){
-	var deferred = Q.defer();
-	Q.when(db, function(db){
-		db.get(trip_id, function(err, body){
-			if(err){
-				deferred.reject(err);
-			}else{
-				if(body.routes && body.routes.length > 0){
-					deferred.resolve({trip_id: trip_id, lat: body.routes[0].lat, lng: body.routes[0].lng});
-				}else{
-					deferred.reject("no routes");
-				}
-			}
-		})["catch"](function(error){
-			deffered.reject(error);
-		});
-	});
-	return deferred.promise;
 };
 
 var _getLocation = function(filepath){
@@ -240,26 +178,6 @@ var _handleTimestep = function(payload, tripRoutes){
 	}
 };
 var _handleTimeStepIntervalTimerId = undefined;
-
-var _insertTripRoutes = function(tripRoutes){
-	console.log("insert trip routes");
-	Q.when(db, function(db){
-		var tripDocs = Object.keys(tripRoutes).map(function(trip_id){
-			var routes = tripRoutes[trip_id].routes;
-			return {_id:trip_id, routes: routes.sort(function(a, b){
-				return a.ts - b.ts;
-			})};
-			tripIdCache.push(trip_id)
-		});
-		db.bulk({docs: tripDocs}, "insert", function(err, body){
-			if(err){
-				console.error("inserting trip routes failed");
-			}else{
-				console.log("inserting trip routes succeeded");
-			}
-		});
-	});
-};
 
 var _requestSendProbeCallback = function(){
 	requesting--;
@@ -301,27 +219,4 @@ var _requestSendProbe = function(deviceId, payload, callback){
 		}
 		driverInsightsProbe.sendProbeData([prob], callback);
 	}, callback);
-};
-
-simulationImporter.getTripRoute = function(trip_uuid, callback){
-	Q.when(driverInsightsAnalyze.getDetail(trip_uuid), function(response){
-		var trip_id = response.trip_id;
-		Q.when(db, function(db){
-			db.get(trip_id, function(err, body){
-				if(err){
-					console.error(err);
-					callback(err);
-					return;
-				}
-				var coordinates = body.routes.map(function(payload){
-					return [payload.lng, payload.lat];
-				});
-				var geoJson = {
-						type: "FeatureCollection",
-						features: [{type: "Feature", geometry: {type: "LineString", coordinates: coordinates}}]
-				};
-				callback(geoJson);
-			});
-		});
-	});
 };

@@ -22,7 +22,7 @@ var router = module.exports = require('express').Router();
 var authenticate = require('./auth.js').authenticate;
 var driverInsightsProbe = require('../../driverInsights/probe');
 var driverInsightsAnalyze = require('../../driverInsights/analyze');
-var simulationImporter = require('../../devicesSimulation/simulationImporter');
+var driverInsightsTripRoutes = require('../../driverInsights/tripRoutes.js');
 var dbClient = require('../../cloudantHelper.js');
 
 router.get('/probeData',  authenticate, function(req, res) {
@@ -45,7 +45,7 @@ router.get('/driverInsights', authenticate, function(req, res) {
 
 router.get('/driverInsights/statistics', authenticate, function(req, res) {
 	getUserTrips(req).then(function(tripIdList){
-		driverInsightsAnalyze.getStatistics().then(function(msg){
+		driverInsightsAnalyze.getStatistics(tripIdList).then(function(msg){
 			res.send(msg);
 		});	
 	})["catch"](function(error){
@@ -88,7 +88,7 @@ router.get('/driverInsights/behaviors/:trip_uuid', authenticate, function(req, r
 });
 
 router.get("/driverInsights/triproutes/:trip_uuid", function(req, res){
-	simulationImporter.getTripRoute(req.params.trip_uuid, function(msg){
+	driverInsightsTripRoutes.getTripRoute(req.params.trip_uuid, function(msg){
 		res.send(msg);
 	});
 });

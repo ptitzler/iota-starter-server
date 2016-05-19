@@ -26,6 +26,7 @@ var simulationClientCtor = require('./devicesSimulation/simulationClient');
 var simulationImporterCtor = require('./devicesSimulation/simulationImporter.js');
 var driverInsightsAnalyze = require('./driverInsights/analyze.js');
 var driverInsightsProbe = require('./driverInsights/probe.js');
+var driverInsightsTripRoutes = require('./driverInsights/tripRoutes.js');
 var contextMapping = require('./driverInsights/contextMapping.js');
 
 var dbClient = require('./cloudantHelper.js');
@@ -99,7 +100,7 @@ var onGetCarsNearbyAsync = function(lat, lng, devicesNearBy){
 
 //a function to be injected to 'reservation.js' to add trip_id from simulated trips when reservation is completed
 var onReservationClosed = function(reservation){
-	var tripIdList = simulationImporter.getTripIdList();
+	var tripIdList = driverInsightsTripRoutes.getTripIdList();
 	if(!reservation.pickupLocation){
 		reservation.trip_id = tripIdList[Math.floor(Math.random() * tripIdList.length)];
 		return Q(reservation);
@@ -107,7 +108,7 @@ var onReservationClosed = function(reservation){
 	var funcs = [];
 	for(var i=0;i<5;i++){
 		var tid = tripIdList[Math.floor(Math.random() * tripIdList.length)];
-		funcs.push(simulationImporter.getTripLocation(tid));
+		funcs.push(driverInsightsTripRoutes.getTripLocation(tid));
 	}
 	var deferred = Q.defer();
 	Q.all(funcs).then(function(results){

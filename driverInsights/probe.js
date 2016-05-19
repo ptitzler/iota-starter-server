@@ -26,8 +26,7 @@ debug.log = console.log.bind(console);
 
 IOTF.on("+", function(payload, deviceType, deviceId){
 	// check mandatory field
-	if(payload.lng === 0 || payload.lat === 0 ||
-		!payload.id || !payload.trip_id || payload.speed === undefined){
+	if(isNaN(payload.lng) || isNaN(payload.lat) || !payload.trip_id || isNaN(payload.speed)){
 		return;
 	}
 	driverInsightsProbe.mapMatch(deviceType, deviceId, payload).then(function(prob){
@@ -70,7 +69,7 @@ var driverInsightsProbe = {
 						"matched_heading": matched.matched_heading,
 						"matched_link_id": matched.matched_link_id || matched.link_id,
 						"speed": payload.speed,
-						"mo_id": payload.id,
+						"mo_id": deviceId,
 						"trip_id": payload.trip_id
 					};
 				self.last_prob_ts = moment().valueOf(); //TODO Need to care in the case that payload.ts is older than last_prob_ts
