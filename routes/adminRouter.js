@@ -110,7 +110,12 @@ adminRouter.get('/driverInsights/behaviors', authenticate, function(req, res) {
 });
 
 adminRouter.get('/tripId', authenticate, function(req, res) {
-	res.send(driverInsightsTripRoutes.getTripIdList());
+	driverInsightsTripRoutes._searchTripsIndex({q:'*:*', sort:'-org_ts', limit:100})
+	.then(function(result){
+		res.send(result.rows.map(function(row){return row.fields;}));
+	})['catch'](function(err){
+		res.status(500).send(err);
+	}).done();
 });
 
 /**

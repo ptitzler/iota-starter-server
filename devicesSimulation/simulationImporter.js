@@ -30,13 +30,13 @@ debug.log = console.log.bind(console);
 var driverInsightsProbe = require('../driverInsights/probe');
 var driverInsightsAnalyze = require('../driverInsights/analyze');
 var driverInsightsTripRoutes = require('../driverInsights/tripRoutes.js');
-var dbClient = require('../cloudantHelper.js');
-
 
 var IMPORT = process.env.IMPORT ? new Boolean(process.env.IMPORT) : true;
 var MAX_NUM_OF_REQUESTING = new Number(process.env.MAX_NUM_OF_REQUESTING || 10);
 var requestQueue = [];
 var requesting = 0;
+
+var SIM_CAR_DEVICE_ID_PREFIX = "Sim_Car_";
 
 function simulationImporter(config) {
 	if (!(this instanceof simulationImporter)) {
@@ -71,7 +71,7 @@ simulationImporter.prototype.loadFcdSimulation = function(fcdDataPath){
 				vehicles.forEach(function(vehicle, vehicleIndex){
 					var vehicleId = new Number(vehicle.$.id);
 
-					var mo_id = "Sim_Car_" + location + "_" + vehicleId;
+					var mo_id = SIM_CAR_DEVICE_ID_PREFIX + location + "_" + vehicleId;
 					var trip_id = uuidMap[mo_id];
 					if(!trip_id){
 						trip_id = uuidMap[mo_id] = uuid.v1();
@@ -126,7 +126,7 @@ simulationImporter.prototype.loadJsonSimulation = function(jsonDataPath){
 					lng: timestep.matched_longitude || timestep.longitude,
 					ts: timestamp,
 					speed: String(timestep.speed),
-					id: "Sim_Car_" + location + "_" + jsonMoId,
+					id: SIM_CAR_DEVICE_ID_PREFIX + location + "_" + jsonMoId,
 					trip_id: timestep.trip_id
 			};
 			if(timestep.road_type){
@@ -220,3 +220,19 @@ var _requestSendProbe = function(deviceId, payload, callback){
 		driverInsightsProbe.sendProbeData([prob], callback);
 	}, callback);
 };
+
+//search demo trips ordered by the distance between the given point and the trip origin
+//- row[i].distance carries the distance in kilometer
+simulationImporter.prototype.searchSimulatedTripsAround = function(lat, lng, limit){
+	return driverInsightsTripRoutes._searchTripsIndex({
+		q:'deviceID:'+SIM_CAR_DEVICE_ID_PREFIX+'*', // within simulated cars
+		sort: '<distance,org_lng,org_lat,'+lng+','+lat+',km>',
+		limit: (limit || 5)
+	}).then(function(result){
+		return result.rows.map(function(row){
+			row.fields.distance = row.order && row.order[0];
+			return row.fields;
+		});
+	});
+};
+

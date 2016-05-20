@@ -20,6 +20,9 @@
 var router = module.exports = require('express').Router();
 var Q = require('q');
 var _ = require('underscore');
+var debug = require('debug')('reservation');
+debug.log = console.log.bind(console);
+
 var IOTF = require('../../watsonIoT');
 var connectedDevices = require('../../workbenchLib').connectedDevicesCache;
 var contextMapping = require('../../driverInsights/contextMapping.js');
@@ -48,7 +51,7 @@ router.get('/carsnearby/:lat/:lng', function(req, res) {
 		else{
 			return res.status(500).send(err);
 		}
-	});
+	}).done();
 });
 
 /*
@@ -56,6 +59,7 @@ router.get('/carsnearby/:lat/:lng', function(req, res) {
  */
 router.get('/activeReservations', authenticate, function(req, res) {
 	getReservations(req.user.id, true).then(function(reservations){
+		debug(JSON.stringify(reservations));
 		return res.send(reservations);
 	})["catch"](function(err){
 		if(err.status)
@@ -70,21 +74,23 @@ router.get('/activeReservations', authenticate, function(req, res) {
  */
 router.get('/reservation', authenticate, function(req, res) {
 	getReservations(req.user.id, false).then(function(reservations){
+		debug(JSON.stringify(reservations));
 		return res.send(reservations);
 	})["catch"](function(err){
 		if(err.status)
 			return res.status(err.status).send(err.message);
 		else
 			return res.status(500).send(err);
-	});
+	}).done();
 });
 
 /*
  * get a reservation - response the reservation
  */
 router.get('/reservation/:reservationId', authenticate, function(req, res) {
-	return getActiveUserReservation(req.params.reservationId, req.user.id).then(
+	getActiveUserReservation(req.params.reservationId, req.user.id).then(
 		function(reservation){
+			debug(JSON.stringify(reservations));
 			return res.send(reservation);
 		}
 	)["catch"](function(err){
@@ -92,7 +98,7 @@ router.get('/reservation/:reservationId', authenticate, function(req, res) {
 			return res.status(err.status).send(err.message);
 		else
 			return res.status(500).send(err);
-	});
+	}).done();
 });
 
 /*
@@ -120,8 +126,7 @@ router.post('/reservation', authenticate, function(req, res) {
 			}
 			return res.send({reservationId : doc.id});
 		});
-
-	});
+	}).done();
 });
 
 /*
@@ -130,7 +135,7 @@ router.post('/reservation', authenticate, function(req, res) {
 router.put('/reservation/:reservationId', authenticate, function(req, res) {
 	if(!req.body.pickupTime && !req.body.dropOffTime && !req.body.status)
 		return res.status(204).end();
-	return getActiveUserReservation(req.params.reservationId, req.user.id).then(
+	getActiveUserReservation(req.params.reservationId, req.user.id).then(
 		function(reservation){
 			if(reservation.actualPickupTime && req.body.pickupTime){
 				console.error("Failed to update a reservation: car already pickedup");
@@ -141,8 +146,11 @@ router.put('/reservation/:reservationId', authenticate, function(req, res) {
 			if(req.body.status && req.body.status.toUpperCase() == "CLOSE"){
 				IOTF.sendCommand("ConnectedCarDevice", reservation.carId, "lock");
 				reservation.status = "closed";
-				reservation.actulDropoffTime = Date.now();
+				reservation.actualDropoffTime = Date.now();
+				reservation.actulDropoffTime = reservation.actualDropoffTime; // to keep backward compatibility
+				debug('Testing if call onReservationClosed or not');
 				if (router.onReservationClosed){
+					debug(' -- calling onReservationClosed...');
 					promise = router.onReservationClosed(reservation);
 				}
 			}
@@ -162,7 +170,7 @@ router.put('/reservation/:reservationId', authenticate, function(req, res) {
 						reservation.carDetails = device;
 					return res.send(reservation);
 				});
-			});
+			}).done();
 		}
 	)["catch"](function(err){
 		console.error(err);
@@ -170,7 +178,7 @@ router.put('/reservation/:reservationId', authenticate, function(req, res) {
 			return res.status(err.status).send(err.message);
 		else
 			return res.status(500).send();
-	});
+	}).done();
 });
 
 /*
@@ -225,6 +233,7 @@ router.post('/carControl', authenticate, function(req, res) {
 				if(!reservation.pickupLocation || !reservation.actualPickupTime){//if this is first unlock update reservation
 					reservation.pickupLocation = {lat: device.lat, lng: device.lng};
 					reservation.actualPickupTime = Date.now();
+					reservation.actalPickupT
 					reservation.status = "driving";
 					DB.insert(reservation ,null, function(err, result){});
 				}
@@ -299,7 +308,8 @@ function getCarsNearBy(lat, lng){
 		// expand car list if necessary
 		if (router.onGetCarsNearbyAsync){
 			// user exit to allow demo-cars around
-			return router.onGetCarsNearbyAsync(lat, lng, devicesNearBy);
+			return router.onGetCarsNearbyAsync(lat, lng, devicesNearBy)
+				.then(filterOutUnreservedCars);
 		}else{
 			return Q(devicesNearBy);
 		}

@@ -30,8 +30,8 @@ var cloudantCreds = VCAP_SERVICES.cloudantNoSQLDB[0].credentials;
 
 //init cloudant DB connection
 var Cloudant = require('cloudant');
-
-var cloudant = {};
+var cloudant = Cloudant(cloudantCreds.url);
+var db = null;
 
 cloudantHelper.getDBClient = function(){
 	var deferred = Q.defer();
@@ -214,7 +214,7 @@ cloudantHelper.cleanupStaleReservations = function(){
 	});
 }
 
-//search Cloudant view
+//search Cloudant view async
 cloudantHelper.searchView = function(viewName, opts){
 	var deferred = Q.defer();
 	var db = cloudant.db.use(CLOUDANT_DB_NAME);
@@ -228,6 +228,82 @@ cloudantHelper.searchView = function(viewName, opts){
 
 }
 
+//search Cloudant index async
+cloudantHelper.searchIndex = function(db, ddocName, indexName, opts){
+	var deferred = Q.defer();
+	db.search(ddocName, indexName, opts, function(err, result){
+		if (!err)
+			return deferred.resolve(result);
+		else
+			deferred.resolve(err);
+	})
+	return deferred.promise;
+}
+
+//create a new Cloudant connection and returns a deferred DB
+cloudantHelper.getDB = function(dbName, designDoc){
+	//connect to the database or create it if needed
+	function ensureDB(){
+		var deferred = Q.defer();
+		Cloudant(cloudantCreds.url, function(err, cloudant){
+			console.log('Connected to Cloudant');
+			
+			cloudant.db.list(function(err, all_dbs){
+				if(err)
+					return deferred.reject(err);
+				if(all_dbs.indexOf(dbName) < 0){
+					console.log('Missing Cloudant DB ' + dbName + '. Creating...');
+					cloudant.db.create(dbName, function(err, body){
+						if(err)
+							return deferred.reject(err);
+						console.log('  created ' + dbName + '.');
+						return deferred.resolve(cloudant.use(dbName));
+					});
+				}else{
+					console.log('Found existing DB ' + dbName + '.');
+					return deferred.resolve(cloudant.use(dbName));
+				}
+			});
+		});
+		return deferred.promise;
+	}
+	
+	function updateDesignDoc(db){
+		if(!designDoc) return Q(db);
+		if(!designDoc._id)
+			throw new Error('Missing _id property in the design doc');
+		
+		var deferred = Q.defer();
+		db.get(designDoc._id, null, function(err, body){
+			if(!err){
+				designDoc._rev = body._rev;
+				db.insert(designDoc, null, function(err, body){
+					if (err){
+						console.error("!!!!!!!!error updating design doc: " + designDoc._id + " err = " + err + " body = " + body);
+						deferred.reject(err);
+					}else
+						deferred.resolve(db);
+				});
+			}else if(err.error == 'not_found'){
+				db.insert(designDoc, designDoc._id, function(err, body){
+					if (err){
+						console.error("!!!!!!!!error updating design doc: " + designDoc._id + " err = " + err + " body = " + body);
+						deferred.reject(err);
+					}else
+						deferred.resolve(db);
+				});
+			}else{
+				console.error('error on get design doc ' + err);
+				deferred.resolve(err);
+			}
+		});
+		return deferred.promise;
+	}
+	
+	return ensureDB().then(function(db){
+		return updateDesignDoc(db);
+	});
+}
 var locationMap = function (doc) {
 	var lastUpdate = doc[Object.keys(doc)[Object.keys(doc).length - 1]];
 	if(lastUpdate && lastUpdate.deviceID){
@@ -275,63 +351,8 @@ var designDoc = {
 		}
 };
 
-
-//connect to the database or create it if needed
-function init()
-{
-	cloudant = Cloudant(cloudantCreds.url, function(err,cloudant)
-			{
-		// create DB if does not exist
-		var db = cloudant.db.use(CLOUDANT_DB_NAME);
-		cloudant.db.get(CLOUDANT_DB_NAME, function(err, body) {
-			if (!err)
-			{
-				createOrUpdateDesignDoc();
-			}
-			else
-			{
-				console.log('creating DB' + CLOUDANT_DB_NAME);
-				cloudant.db.create(CLOUDANT_DB_NAME, function(err,body) {
-					if (!err)
-					{
-						createOrUpdateDesignDoc();
-					}
-					else
-					{
-						console.error('Err creating DB ' + JSON.stringify(err));
-					}
-				});
-			}
-		})
-			});
-};
-
-function createOrUpdateDesignDoc()
-{
-	var db = cloudant.db.use(CLOUDANT_DB_NAME);
-	db.get(designDoc._id,null,function(err,body) {
-		if (!err)
-		{
-			designDoc._rev = body._rev
-			db.insert(designDoc,null,function(err, body){
-				if (err)
-					console.error("!!!!!!!!error inserting" + devID + " err = " + err + " body = " + body);
-			});
-		}
-		else if (err.error == 'not_found')
-		{
-			db.insert(designDoc,designDoc._id,function(err, body) {
-				if (err)
-					console.error("error inserting" + devID + " err = " + err + " body = " + body);
-
-			});
-		}
-		else
-		{
-			console.error('error on get design doc ' + err);
-		}
-	});
-};
-
-init();
-setInterval(cloudantHelper.storeDeviceData, DB_UPDATE_INTERVAL);
+//init DB and start timer session
+(function(){
+	db = cloudantHelper.getDB(CLOUDANT_DB_NAME, designDoc);
+	setInterval(cloudantHelper.storeDeviceData, DB_UPDATE_INTERVAL);
+}());

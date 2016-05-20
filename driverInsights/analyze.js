@@ -13,6 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+var driverInsightsAnalyze = module.exports = {};
+
 var _ = require("underscore");
 var Q = require("q");
 var request = require("request");
@@ -40,7 +42,7 @@ var WATCH_JOB_STATUS_INTERVAL = new Number(process.env.WATCH_JOB_STATUS_INTERVAL
 /*
  * driverInsightsAnalyze is an exported module
  */
-var driverInsightsAnalyze = {
+_.extend(driverInsightsAnalyze, {
 	// Configurations for Driver Behavior service is specified in ./probe.js
 	driverInsightsConfig: driverInsightsProbe.driverInsightsConfig,
 	
@@ -615,6 +617,4 @@ var driverInsightsAnalyze = {
 			console.log("No more watching job left");
 		}
 	}
-}
-
-module.exports = driverInsightsAnalyze;
+});

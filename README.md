@@ -127,6 +127,8 @@ DISABLE_DEMO_CAR_DEVICES=true
  * [Quickstart](https://quickstart.internetofthings.ibmcloud.com/)
  * [How to Register Devices in IBM Watson IoT Platform](https://developer.ibm.com/recipes/tutorials/how-to-register-devices-in-ibm-iot-foundation/)
 
+A device type for your device can be anything. If you have run the app with a simulation engine enabled, __ConnectedCarDevice__ is already registered as a device type for simulated cars. You can either use it or create new one for your device.
+
 ### Add your device information to Cloudant NoSQL DB
 1. In your [Bluemix dashboard][bluemix_dashboard_url], open the Cloudant NoSQL DB service.
 
@@ -139,7 +141,7 @@ DISABLE_DEMO_CAR_DEVICES=true
 5. Create new document with the following format.
 ```
   {
-    "_id": "<your device id>",
+    "_id": "<device id string>",
     "deviceDetails": {
        "name": "<name in string>",
        "model": {
@@ -157,6 +159,21 @@ DISABLE_DEMO_CAR_DEVICES=true
 The `_id` must be the device id that you have specified in the Internet of Things Platform. The other values are optional.
 
 Now, go to your [Bluemix dashboard][bluemix_dashboard_url] and restart the app.
+
+### Event format
+Your device is expected to publish the following event to the Internet of Things Platform.
+
+```
+{
+  "d": {
+    "lat": <latitude in double>,
+    "lng": <longitude in double>,
+    "trip_id": "<trip id in string>",
+    "speed": <vehicle speed in double (km/h)>
+  }
+}
+```
+The `lat` and `lng` are required to show your car on a map on your mobile app. Set the  location of your device as values of the `lat` and `lng`. When you record your trip route after you reserve the car, the `trip_id` and `speed` are also required. The same `trip_id` must be set during the reservation.
 
 ## Report Bugs
 If you find a bug, please report it using the [Issues section](https://github.com/ibm-watson-iot/iota-starter-server/issues).

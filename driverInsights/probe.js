@@ -21,17 +21,39 @@ var fs = require("fs-extra");
 var moment = require("moment");
 var IOTF = require('../watsonIoT');
 var contextMapping = require('./contextMapping.js');
+var driverInsightsTripRoutes = require("./tripRoutes.js");
 var debug = require('debug')('probe');
 debug.log = console.log.bind(console);
 
+var tripRouteCache = {};
+var insertTripRouteTimer = null;
 IOTF.on("+", function(payload, deviceType, deviceId){
 	// check mandatory field
 	if(isNaN(payload.lng) || isNaN(payload.lat) || !payload.trip_id || isNaN(payload.speed)){
 		return;
 	}
+	// assign ts if missing
+	if(!payload.ts)
+		payload.ts = Date.now();
+	
 	driverInsightsProbe.mapMatch(deviceType, deviceId, payload).then(function(prob){
 		driverInsightsProbe.sendProbeData([prob]);
 	});
+
+	var trip_id = payload.trip_id;
+	var routeCache = tripRouteCache[trip_id];
+	if(!routeCache){
+		tripRouteCache[trip_id] = routeCache = {routes: [], deviceType: deviceType, deviceID: deviceId };
+	}
+	routeCache.routes.push(payload);
+	if(!insertTripRouteTimer){
+		insertTripRouteTimer = setTimeout(function(){
+			var tmp = Object.assign({}, tripRouteCache);
+			tripRouteCache = {};
+			driverInsightsTripRoutes.insertTripRoutes(tmp);
+			insertTripRouteTimer = null;
+		}, 5000);
+	}
 });
 
 
@@ -72,7 +94,6 @@ var driverInsightsProbe = {
 						"mo_id": deviceId,
 						"trip_id": payload.trip_id
 					};
-				self.last_prob_ts = moment().valueOf(); //TODO Need to care in the case that payload.ts is older than last_prob_ts
 				return prob;
 			});
 	},
@@ -85,6 +106,7 @@ var driverInsightsProbe = {
 	 *  ]
 	 */
 	sendProbeData: function(carProbeData, callback) {
+		var self = this;
 		var node = this.driverInsightsConfig;
 		var api = "/datastore/carProbe";
 		
@@ -108,6 +130,7 @@ var driverInsightsProbe = {
 			request(options, function(error, response, body){
 				if (!error && response.statusCode === 200) {
 					debug('sendProbData response: '+ body);
+					self.last_prob_ts = moment().valueOf(); //TODO Need to care in the case that payload.ts is older than last_prob_ts
 					if(callback) callback(body);
 				} else {
 					console.error("sendProbeData:" + options.body);

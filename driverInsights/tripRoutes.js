@@ -13,57 +13,28 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+var tripRoutes = module.exports;
+
+var _ = require("underscore");
 var Q = require("q");
-var Cloudant = require('cloudant');
 var debug = require('debug')('tripRoutes');
 debug.log = console.log.bind(console);
+var dbClient = require('./../cloudantHelper.js');
 var driverInsightsAnalyze = require('../driverInsights/analyze');
 
-var tripRoutes = {
+var TRIPROUTES_DB_NAME = "trip_routes";
+
+_.extend(tripRoutes, {
 	db: null,
-	tripIdCache: [],
 
 	_init: function(){
-		var deferred = Q.defer();
-		this.db = deferred.promise;
 		/*
 		 * Database "trip_routes" stores route array for each trip_id
 		 * document = {routes: {lat: "-90 ~ 90", lng: "-180 ~ 180", ts: "timestamp in mill", id: "device id", trip_id: "uuid", ...}
 		 */
-		var cloudantCreds = VCAP_SERVICES.cloudantNoSQLDB[0].credentials;
-		var self = this;
-		Cloudant(cloudantCreds.url, function(err, cloudant) {
-			debug('Connected to Cloudant')
-
-			cloudant.db.list(function(err, all_dbs) {
-				if (all_dbs.indexOf("trip_routes") < 0) {
-					// first time -- need to create the iotzone-devices database
-					console.log("creating DB trip_routes");
-					cloudant.db.create("trip_routes", function() {
-						deferred.resolve(cloudant.use("trip_routes"));
-						console.log("created DB trip_routes");
-					});
-				} else {
-					console.log("found DB trip_routes");
-					var targetDb = cloudant.use('trip_routes');
-					deferred.resolve(targetDb);
-					// cache trip_id
-					targetDb.list(function(err, body) {
-						if (!err) {
-							self.tripIdCache = self.tripIdCache.concat(body.rows.map(function(doc){
-								return doc.id;
-							}));
-							console.log("tripIdCache:" + JSON.stringify(self.tripIdCache));
-						}
-					});	
-				}
-			})
-		});
+		this.db = dbClient.getDB(TRIPROUTES_DB_NAME, this._getDesignDoc());
 	},
 
-	getTripIdList: function(){
-		return this.tripIdCache;
-	},
 	getTripLocation: function(trip_id){
 		var deferred = Q.defer();
 		Q.when(this.db, function(db){
@@ -84,22 +55,36 @@ var tripRoutes = {
 		return deferred.promise;
 	},
 	insertTripRoutes: function(tripRoutes){
-		console.log("insert trip routes");
+		debug("insert trip routes");
 		var self = this;
 		Q.when(this.db, function(db){
-			var tripDocs = Object.keys(tripRoutes).map(function(trip_id){
-				var routes = tripRoutes[trip_id].routes;
-				return {_id:trip_id, routes: routes.sort(function(a, b){
-					return a.ts - b.ts;
-				})};
-				self.tripIdCache.push(trip_id)
-			});
-			db.bulk({docs: tripDocs}, "insert", function(err, body){
-				if(err){
-					console.error("inserting trip routes failed");
-				}else{
-					console.log("inserting trip routes succeeded");
-				}
+			var tripIds = Object.keys(tripRoutes);
+			db.fetch({keys: tripIds}, function(err, body){
+				var existingRoutes = (body && body.rows) || [];
+				var tripDocs = tripIds.map(function(trip_id, index){
+					var tripRoute = tripRoutes[trip_id];
+					var appendingRoutes = tripRoute.routes;
+					// The rows must be returned in the same order as the supplied "keys" array.
+					var doc = (!existingRoutes[index] || existingRoutes[index].key !== trip_id || existingRoutes[index].error === "not_found")
+								? {_id: trip_id, routes: []}
+								: existingRoutes[index].doc;
+					doc.routes = doc.routes.concat(appendingRoutes).sort(function(a, b){
+						return a.ts - b.ts;
+					});
+					// update the device info if necessary
+					if(tripRoute.deviceID) doc.deviceID = tripRoute.deviceID;
+					if(tripRoute.deviceType) doc.deviceType = tripRoute.deviceType;
+					return doc;
+				});
+				db.bulk({docs: tripDocs}, "insert", function(err, body){
+					if(err){
+						console.error("inserting trip routes failed");
+					}else{
+						debug("inserting trip routes succeeded");
+					}
+				});
+			})["catch"](function(error){
+				console.error(error);
 			});
 		});
 	},
@@ -126,6 +111,49 @@ var tripRoutes = {
 			});
 		});
 	},
-};
-module.exports = tripRoutes;
+	getTripsByDevice: function(deviceID, limit){
+		return this._searchTripsIndex({q:'deviceID:'+deviceID, sort: '-org_ts', limit:(limit||5)})
+			.then(function(result){
+				return result.rows.map(function(row){ return row.fields; });
+			});
+	},
+	_searchTripsIndex: function(opts){
+		return Q(this.db).then(function(db){
+			var deferred = Q.defer();
+			db.search(TRIPROUTES_DB_NAME, 'trips', opts, function(err, result){
+				if (err)
+					return deferred.reject(err);
+				return deferred.resolve(result);
+			});
+			return deferred.promise;
+		});
+	},
+	_getDesignDoc: function(){
+		var deviceTripIndexer = function(doc){
+			if(doc.routes && Array.isArray(doc.routes) && doc.routes.length > 0){
+				var route0 = doc.routes[0];
+				if(route0.trip_id){
+					// this looks like a trip
+					index('deviceID', doc.deviceID || route0.id, {store:true});
+					index('trip_id', route0.trip_id, {store:true});
+					// origin info
+					index('org_lat', parseFloat(route0.lat), {store:true});
+					index('org_lng', parseFloat(route0.lng), {store:true});
+					index('org_ts', parseFloat(route0.ts), {store:true}); // timestamp in millis
+					index('last_ts', parseFloat(doc.routes[doc.routes.length-1].ts), {store:true});
+				}
+			}
+		};
+		var designDoc = {
+				_id: '_design/' + TRIPROUTES_DB_NAME,
+				indexes: { 
+					trips: { 
+						analyzer: {name: 'keyword'},
+						index: deviceTripIndexer.toString()
+					}
+				}
+		};
+		return designDoc;
+	},
+});
 tripRoutes._init();

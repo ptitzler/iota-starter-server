@@ -100,51 +100,71 @@ var onGetCarsNearbyAsync = function(lat, lng, devicesNearBy){
 
 //a function to be injected to 'reservation.js' to add trip_id from simulated trips when reservation is completed
 var onReservationClosed = function(reservation){
-	var tripIdList = driverInsightsTripRoutes.getTripIdList();
-	if(!reservation.pickupLocation){
-		reservation.trip_id = tripIdList[Math.floor(Math.random() * tripIdList.length)];
-		return Q(reservation);
+	// try to find the latest trip for the reserved car...
+	function findLatestDeviceTrip(deviceID){
+		debug('Trying to find trips for deviceID: ' + deviceID);
+		return driverInsightsTripRoutes.getTripsByDevice(deviceID, 3)
+			.then(function(trips){
+				debug('Found ' + trips.length + ' recent trips for device: ' + deviceID);
+				if(trips.length == 0)
+					return null;
+				//select based on duration of intersection of the actual trip time and reservation time
+				var r = _.max(trips, function(trip){
+					//get the duration
+					var start = Math.max(reservation.actualPickupTime, trip.org_ts);
+					var end = Math.min(reservation.actualDropoffTime || Date.now(), trip.last_ts);
+					var dur = Math.max(0, end - start); // should be >=0
+					debug('  overwrapped time duration is ' + dur + ' for the trip: ' + JSON.stringify(trip));
+					debug('    reservation.actualPickupTime=' + reservation.actualPickupTime);
+					debug('    trip.org_ts=' + trip.org_ts);
+					debug('    trip.last_ts=' + trip.last_ts);
+					return isNaN(dur) ? -1 : dur;
+				});
+				debug('A trip route [' + r.trip_id + '] is selected for the reservation just clonsed on device ' + deviceID);
+				return r;
+			})['catch'](function(err){
+				console.error('Caught error on searching trips by device: ', err);
+				return null; // fall-back with reservation
+			});
 	}
-	var funcs = [];
-	for(var i=0;i<5;i++){
-		var tid = tripIdList[Math.floor(Math.random() * tripIdList.length)];
-		funcs.push(driverInsightsTripRoutes.getTripLocation(tid));
+	// pick one of simulated tirp nearby
+	function pickSimulatedTrip(){
+		debug('Trying to pick a simulated trip randomly...');
+		pickupLocation = reservation.pickupLocation || {lat: 48.8, lng: 11.35}; // fallback to munich area
+		var lat = pickupLocation.lat, lng = pickupLocation.lng;
+		return simulationImporter.searchSimulatedTripsAround(lat, lng)
+			.then(function(trips){
+				debug('A simulation trip candidates detected. N=' + trips.length);
+				if(trips.length == 0)
+					return null;
+				// pick one weighted by inverse of trip distance
+				try{
+					var r = chance.weighted(trips, trips.map(function(trip){
+							debug('  considering a trip device=' + trip.deviceID + ', distance=' + trip.distance);
+							if(isNaN(trip.distance)) return 0.1; // place it 100k kM away
+							return Math.max(0, 10000.0 / (parseFloat(trip.distance) + 3.0)); // normalize 3km distance
+						}));
+					debug('A simulation trip route is selected for the reservation just clonsed on device: ' + JSON.stringify(r));
+					return r;
+				}catch(e){
+					console.error('Caught error: ', e);
+					return trips[0];
+				}
+			})['catch'](function(err){
+				console.error('Caught error on searching simulated trips: ', err);
+				return null; // fall-back with reservation
+			});
 	}
-	var deferred = Q.defer();
-	Q.all(funcs).then(function(results){
-		var trip = null;
-		var distance = Number.MAX_VALUE;
-		results.forEach(function(loc){
-			var d = getDistance({latitude: reservation.pickupLocation.lat, longitude: reservation.pickupLocation.lng}, 
-							{latitude: loc.lat, longitude: loc.lng});
-			if(d < distance){
-				trip = loc.trip_id;
-				distance = d;
-			}
-		});	
-		reservation.trip_id = trip;
-		deferred.resolve(reservation);
-	})['catch'](function(err){ 
-		deferred.reject(err);
-	});
-	return deferred.promise;
-};
-
-function getDistance(p0, p1) {
-	// Convert to Rad
-	function to_rad(v) {
-		return v * Math.PI / 180;
-	}
-	var latrad0 = to_rad(p0.latitude);
-	var lngrad0 = to_rad(p0.longitude);
-	var latrad1 = to_rad(p1.latitude);
-	var lngrad1 = to_rad(p1.longitude);
-	var norm_dist = Math.acos(Math.sin(latrad0) * Math.sin(latrad1) + Math.cos(latrad0) * Math.cos(latrad1) * Math.cos(lngrad1 - lngrad0));
 	
-	// Earths radius in meters via WGS 84 model.
-	var earth = 6378137;
-	return earth * norm_dist;
-}
+	var deviceID = reservation.carId;
+	return findLatestDeviceTrip(deviceID).then(function(trip){
+			return trip ? trip : pickSimulatedTrip(); // redirect to simulated trips when the trip is missing
+		}).then(function(trip){
+			reservation.trip_id = trip.trip_id;
+			reservation.trip_deviceID = trip.deviceID; // for debug
+			return reservation;
+		});
+};
 
 /*
  * Simulated cars session
