@@ -100,7 +100,9 @@ _.extend(tripRoutes, {
 						return;
 					}
 					var coordinates = body.routes.map(function(payload){
-						return [payload.lng, payload.lat];
+						var lng = payload.matched_longitude || payload.lng || payload.longitude;
+						var lat = payload.matched_latitude || payload.lat || payload.latitude;
+						return [lng, lat];
 					});
 					var geoJson = {
 							type: "FeatureCollection",

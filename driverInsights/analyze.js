@@ -149,6 +149,9 @@ _.extend(driverInsightsAnalyze, {
 	 * summary: true to get summary of each trip, false to get detail of each trip
 	 */
 	_getListOfTrips: function(tripIdList, summary){
+		if(!tripIdList || tripIdList.length == 0){
+			return Q([]);
+		}
 		var maxNumOfConcurrentCall = 8;
 		var deferred = Q.defer();
 		var retrieveMethod = this[summary ? "getSummary" : "getDetail"].bind(this);
@@ -181,10 +184,11 @@ _.extend(driverInsightsAnalyze, {
 	getList: function(tripIdList){
 		this.sendJobRequest();
 		
-		if(tripIdList && tripIdList.length > 0){
+		if(tripIdList){
 			return this._getListOfTrips(tripIdList, true);
+		}else{
+			return this.getSummary();
 		}
-		return this.getSummary();
 	},
 	
 	/*

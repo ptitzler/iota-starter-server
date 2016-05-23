@@ -214,7 +214,7 @@ var _requestSendProbe = function(deviceId, payload, callback){
 	};
 	
 	mapMatch("Car_Sim", deviceId, payload).then(function(prob){
-		if(payload.road_type){
+		if(!prob.road_type && payload.road_type){
 			prob.road_type = payload.road_type;
 		}
 		driverInsightsProbe.sendProbeData([prob], callback);

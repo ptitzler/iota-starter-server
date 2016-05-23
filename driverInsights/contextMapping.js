@@ -133,8 +133,41 @@ var contextMapping = {
 					lng: latlng["matched_longitude"]
 				};
 			});
+	},
+	getLinkInformation: function(link_id){
+		var deferred = Q.defer();
+		var options = {
+			url: this.contextMappingConfig.baseURL + "/link" +
+				"?tenant_id=" + this.contextMappingConfig.tenant_id +
+				"&link_id=" + link_id,
+			rejectUnauthorized: false,
+			auth: {
+				user: this.contextMappingConfig.username,
+				pass: this.contextMappingConfig.password,
+				sendImmediately: true
+			}
+		};
+		request(options, function(error, response, body){
+			if(!error){
+				try{
+					var responseJson = JSON.parse(body);
+					if(responseJson.links && responseJson.links.length > 0){
+						debug("link information retrieved url: " + options.url + "\n body: " + body);
+						deferred.resolve(responseJson.links[0]);
+					}else{
+						console.error("link information not found\n url: : " + options.url + "\n body: " + body);
+						deferred.reject(responseJson);
+					}
+				}catch(e){
+					console.error("error on get link information\n url: " + options.url + "\n body: " + body);
+					deferred.reject(e);
+				}
+			}else{
+				return deferred.reject(error);
+			}
+		});
+		return deferred.promise;
 	}
-
 }
 
 module.exports = contextMapping;

@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+var _ = require("underscore");
 var Q = new require('q');
 var request = require("request");
 var cfenv = require("cfenv");
@@ -32,28 +33,33 @@ IOTF.on("+", function(payload, deviceType, deviceId){
 	if(isNaN(payload.lng) || isNaN(payload.lat) || !payload.trip_id || isNaN(payload.speed)){
 		return;
 	}
+	if(payload.lng == 0 && payload.lat == 0){
+		return;
+	}
+
 	// assign ts if missing
 	if(!payload.ts)
 		payload.ts = Date.now();
 	
 	driverInsightsProbe.mapMatch(deviceType, deviceId, payload).then(function(prob){
 		driverInsightsProbe.sendProbeData([prob]);
-	});
 
-	var trip_id = payload.trip_id;
-	var routeCache = tripRouteCache[trip_id];
-	if(!routeCache){
-		tripRouteCache[trip_id] = routeCache = {routes: [], deviceType: deviceType, deviceID: deviceId };
-	}
-	routeCache.routes.push(payload);
-	if(!insertTripRouteTimer){
-		insertTripRouteTimer = setTimeout(function(){
-			var tmp = Object.assign({}, tripRouteCache);
-			tripRouteCache = {};
-			driverInsightsTripRoutes.insertTripRoutes(tmp);
-			insertTripRouteTimer = null;
-		}, 5000);
-	}
+		var trip_id = payload.trip_id;
+		var routeCache = tripRouteCache[trip_id];
+		if(!routeCache){
+			tripRouteCache[trip_id] = routeCache = {routes: [], deviceType: deviceType, deviceID: deviceId };
+		}
+		_.extend(payload, prob);
+		routeCache.routes.push(payload);
+		if(!insertTripRouteTimer){
+			insertTripRouteTimer = setTimeout(function(){
+				var tmp = Object.assign({}, tripRouteCache);
+				tripRouteCache = {};
+				driverInsightsTripRoutes.insertTripRoutes(tmp);
+				insertTripRouteTimer = null;
+			}, 5000);
+		}
+	});
 });
 
 
@@ -94,7 +100,16 @@ var driverInsightsProbe = {
 						"mo_id": deviceId,
 						"trip_id": payload.trip_id
 					};
-				return prob;
+				if(!matched.road_type && prob.matched_link_id){
+					return contextMapping.getLinkInformation(prob.matched_link_id).then(function(linkInfo){
+						if(linkInfo.properties && linkInfo.properties.type){
+							prob.road_type = linkInfo.properties.type;
+						}
+						return prob;
+					}, function(error){return prob;});
+				}else{
+					return prob;
+				}
 			});
 	},
 	
