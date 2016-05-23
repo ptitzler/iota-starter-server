@@ -116,7 +116,7 @@ $(document).ready(function() {
 
 			// draw behavior bars
 			for (var behaviorName in data.behaviors) {
-				behaviorId = 'behavior_' + behaviorName;
+				behaviorId = 'behavior_' + behaviorName.replace(' ', '_', "g"); // remove spaces
 				$('#trip_analysis').append('<img src="' + markerImages[behaviorName] + '" width="16px" alt="' + behaviorName + '"/><span>' + behaviorName + '</span>');
 				$('#trip_analysis').append('<div class="progress" id="' + behaviorId + '"></div>');
 				drawDrivingBehaviorChart('#' + behaviorId, behaviorName, data);

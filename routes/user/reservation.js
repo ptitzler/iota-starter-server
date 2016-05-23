@@ -90,7 +90,7 @@ router.get('/reservation', authenticate, function(req, res) {
 router.get('/reservation/:reservationId', authenticate, function(req, res) {
 	getActiveUserReservation(req.params.reservationId, req.user.id).then(
 		function(reservation){
-			debug(JSON.stringify(reservations));
+			debug(JSON.stringify(reservation));
 			return res.send(reservation);
 		}
 	)["catch"](function(err){

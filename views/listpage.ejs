@@ -1,0 +1,110 @@
+<!----------------------------------------------------------------------------
+   Copyright 2016 IBM Corp. All Rights Reserved.
+   
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+   
+        http://www.apache.org/licenses/LICENSE-2.0
+        
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+------------------------------------------------------------------------------>
+<!DOCTYPE html>
+<html>
+<head>
+<title>Data Listing</title>
+<style>
+table, td, th {
+	border: solid 1px; 
+	border-collapse: collapse;
+}
+thead {
+	background-color: cyan;
+}
+</style>
+<script type="text/javascript"
+	src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
+</head>
+<body>
+	<table id="table" style="display:none">
+		<thead id="thead" ><tr id='header'><th>#</th></tr></thead>
+		<tbody id="tbody" >
+		</tbody>
+	</table>
+	<div id="status">Loading...</div>
+	<script type="text/javascript">
+		// assume the fiest URL parameter's valie is REST API to be displayed as list
+		var url = $(location).attr('search').split("=")[1];
+		
+		$(document).ready(function(){
+			$.ajax({
+				type: 'GET',
+				url: url,
+				dataType: 'json'
+			}).then(
+				function(response){
+					if(response.length > 0){
+						// columns
+						var columns = [];
+						for(var i=0; i<response.length; i++){
+							var data = response[i];
+							if($.isPlainObject(data)){
+								for(var colName in data){
+									columns.push(colName);
+								}
+								break;
+							}
+						}
+						columns.sort();
+						
+						// display columns
+						columns.forEach(function(c) {
+							$("#header").append("<th>" + c + "</th>");
+						});
+						
+						// display data
+						response.forEach(function(record, index){
+							var content;
+							if($.isPlainObject(record)){
+								content = "<tr><td>" + (index + 1) + "</td>";
+								columns.forEach(function(c) {
+									var data = record[c];
+									if($.isPlainObject(data)){
+										content = content + "<td>";
+										for(var innerColumn in data){
+											var innerData = data[innerColumn];
+											if(innerColumn === "trip_uuid"){
+												innerData = "<a href='/user/ui/behaviors/" + innerData + "'>" + innerData + "</a>"; 
+											}
+											content = content + "<div>" + innerColumn + " : " + innerData + "</div>";
+										}
+										content = content + "</td>";
+									}else{
+										content = content + "<td nowrap>" + data + "</td>";
+									}
+								});
+							}else{
+								// not an object
+								content = "<tr><td>" + (index + 1) + "</td><td colspan=" + columns.length + ">" + record + "</td>";
+							}
+							content = content + "</tr>";
+							$("#tbody").append(content);
+						});
+						$("#table").css("display", "");
+						$("#status").html("");
+					}else{
+						$("#status").html("No values");
+					}
+				},
+				function(xhr, status, error) {
+					$("#status").html("error ("+ status+ "): " + error);
+				}
+			); // $ajax
+		});
+	</script>
+</body>
+</html>

@@ -118,6 +118,10 @@ adminRouter.get('/tripId', authenticate, function(req, res) {
 	}).done();
 });
 
+adminRouter.get('/listpage', authenticate, function(req, res) {
+	res.render("listpage", {});
+});
+
 /**
  * Start messages monitor wss server and show the Messages Monitor page
  */
