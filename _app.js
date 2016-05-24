@@ -19,6 +19,7 @@ var request = require('request');
 var _ = require('underscore');
 var fs = require('fs-extra');
 var chance = require('chance')();
+var moment = require('moment');
 var debug = require('debug')('_app');
 debug.log = console.log.bind(console);
 
@@ -263,7 +264,12 @@ function startImportingDrivingHistories(){
 				}
 			});
 			// Send job request to show "something" for trial user
-			setTimeout((driverInsightsAnalyze.sendJobRequest).bind(driverInsightsAnalyze), simulationImporter.FIRST_JOB_REQUEST_TIME);
+			var yesterday = moment().subtract(1, "days").format("YYYY-MM-DD");
+			var today = moment().format("YYYY-MM-DD");
+			setTimeout(function(){
+				driverInsightsAnalyze.sendJobRequest(yesterday, yesterday);
+				driverInsightsAnalyze.sendJobRequest(today, today);
+			}, simulationImporter.FIRST_JOB_REQUEST_TIME);
 		});
 	});
 	

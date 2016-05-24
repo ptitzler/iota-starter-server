@@ -185,7 +185,10 @@ var _requestSendProbeCallback = function(){
 		debug("_requestSendProbeCallback: " + requestQueue.length + ", " + requesting)
 	}
 	if(requestQueue.length <= 0 && requesting === 0){
-		driverInsightsAnalyze.sendJobRequest(moment(0).format("YYYY-MM-DD"));
+		var yesterday = moment().subtract(1, "days").format("YYYY-MM-DD");
+		var today = moment().format("YYYY-MM-DD");
+		driverInsightsAnalyze.sendJobRequest(yesterday, yesterday);
+		driverInsightsAnalyze.sendJobRequest(today, today);
 	}else{
 		var queuedPayload = requestQueue.shift();
 		if(queuedPayload){
