@@ -86,6 +86,8 @@ function _getReservations(scope, res){
 	dbClient.searchView(scope, {}).then(function(result){
 		var reservations = result.rows.map(function(item){
 			return item.value;
+		}).filter(function(resv){
+			return resv.status;
 		});
 		res.send(reservations);
 	})["catch"](function(error){
