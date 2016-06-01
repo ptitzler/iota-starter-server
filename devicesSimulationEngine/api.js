@@ -26,8 +26,18 @@ var devicesManager = require('./devicesManager');
 /*
  * Authentication
  */
-var API_KEY = "b52f6b93-5b22-4e76-a765-b3c8ad7a72a8";
-var API_TOKEN = "21b750f1-43ee-4c92-a11e-1a30ff503feb";
+// this values should be same as values in simulationClient.js
+var API_KEY = "PUT_YOUR_OWN_API_KEY";
+var API_TOKEN = "PUT_YOUR_OWN_API_TOKEN";
+var userVcapSvc = JSON.parse(process.env.USER_PROVIDED_VCAP_SERVICES || '{}');
+var vcapSvc = userVcapSvc.devicesSimulation;
+if (vcapSvc) {
+	simulationCreds = vcapSvc[0];
+	if(simulationCreds && !simulationCreds.url){
+		API_KEY = simulationCreds.apiKey;
+		API_TOKEN = simulationCreds.apiToken;
+	}
+}
 
 var authenticate = function(req,res,next){
 	function unauthorized(res) {

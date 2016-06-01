@@ -36,6 +36,8 @@ dbClient.getDBClient().then(function(db){
 	DB = db;
 });
 
+var validator = new Validator();
+
 /*
  * Find cars nearby the specific location.
  * For the demonstration, if there is no cars,
@@ -105,7 +107,7 @@ router.get('/reservation/:reservationId', authenticate, function(req, res) {
  * create reservation - response the reservation ID
  */
 router.post('/reservation', authenticate, function(req, res) {
-	if(!req.body.carId || !req.body.pickupTime || !req.body.dropOffTime)
+	if(!req.body.carId || !validator.isNumeric(req.body.pickupTime) || !validator.isNumeric(req.body.dropOffTime))
 		return res.status(400).send("missing request params");
 	dbClient.searchView('activeReservations', {key: req.body.carId}).then(function(result){
 		if(result.rows.length > 0)
@@ -113,10 +115,10 @@ router.post('/reservation', authenticate, function(req, res) {
 		//create reservation
 		var reservation = {
 				type: "reservation",
-				carId: req.body.carId,
+				carId: validator.escapeId(req.body.carId),
 				pickupTime: req.body.pickupTime,
 				dropOffTime: req.body.dropOffTime,
-				userId: req.user.id,
+				userId: validator.escapeId(req.user.id),
 				status: "active"
 		};
 		DB.insert(reservation ,null, function(err, doc){
@@ -147,7 +149,6 @@ router.put('/reservation/:reservationId', authenticate, function(req, res) {
 				IOTF.sendCommand("ConnectedCarDevice", reservation.carId, "lock");
 				reservation.status = "closed";
 				reservation.actualDropoffTime = Date.now();
-				reservation.actulDropoffTime = reservation.actualDropoffTime; // to keep backward compatibility
 				debug('Testing if call onReservationClosed or not');
 				if (router.onReservationClosed){
 					debug(' -- calling onReservationClosed...');
@@ -155,8 +156,8 @@ router.put('/reservation/:reservationId', authenticate, function(req, res) {
 				}
 			}
 
-			reservation.pickupTime = (req.body.pickupTime) ? req.body.pickupTime : reservation.pickupTime;
-			reservation.dropOffTime = (req.body.dropOffTime) ? req.body.dropOffTime : reservation.dropOffTime;
+			reservation.pickupTime = validator.isNumeric(req.body.pickupTime) ? req.body.pickupTime : reservation.pickupTime;
+			reservation.dropOffTime = validator.isNumeric(req.body.dropOffTime) ? req.body.dropOffTime : reservation.dropOffTime;
 
 			promise.then(function(reservation){
 				DB.insert(reservation ,null, function(err, result){
@@ -233,7 +234,6 @@ router.post('/carControl', authenticate, function(req, res) {
 				if(!reservation.pickupLocation || !reservation.actualPickupTime){//if this is first unlock update reservation
 					reservation.pickupLocation = {lat: device.lat, lng: device.lng};
 					reservation.actualPickupTime = Date.now();
-					reservation.actalPickupT
 					reservation.status = "driving";
 					DB.insert(reservation ,null, function(err, result){});
 				}
@@ -250,6 +250,13 @@ router.post('/carControl', authenticate, function(req, res) {
 		else
 			return res.status(500).send();
 	});
+});
+
+/*
+ * get connectedDevices - response the connectedDevices
+ */
+router.get('/connectedDevices', authenticate, function(req,res){
+	res.send(connectedDevices.getConnectedDevices());
 });
 
 router.get('/ui/reservation', authenticate, function(req, res) {
@@ -416,4 +423,11 @@ function getDistance(p0, p1) {
 	// Earths radius in meters via WGS 84 model.
 	var earth = 6378137;
 	return earth * norm_dist;
+};
+
+function Validator(){
+	this.isNumeric = function(str){return !isNaN(str)};
+
+	this.escapeName = function(str){return str && str.replace(/[^0-9a-zA-Z\s_-]/g, "_");};
+	this.escapeId = function(str){return str && str.replace(/^[^0-9a-zA-Z]+/, "").replace(/[^0-9a-zA-Z_-]/g, "_");};
 }

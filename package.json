@@ -1,6 +1,6 @@
 {
     "name": "iot-automotive-starter",
-    "version": "0.0.1",
+    "version": "1.0.1",
     "description": "IoT for Automotive Starter Application Server",
     "scripts": {
         "start": "node app.js"
@@ -31,7 +31,12 @@
         "bms-mca-token-validation-strategy" : "2.0.3",
         "qr-image": "3.1.0",
         "xml2js": "0.4.9",
-        "ibmiotf": "0.2.12"
+        "ibmiotf": "0.2.12",
+        "cf-deployment-tracker-client": "0.0.x"
     },
-    "repository": {}
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/ibm-watson-iot/iota-starter-server.git"
+    },
+    "license": "Apache-2.0"
 }

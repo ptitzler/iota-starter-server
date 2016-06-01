@@ -24,7 +24,8 @@ var bodyParser = require('body-parser');
 var cors = require('cors');
 var helmet = require('helmet');
 var appEnv = require('cfenv').getAppEnv();
-
+//Deployment tracker code snippet
+require("cf-deployment-tracker-client").track();
 /*
  * Define useful global variables and functions shared in this application
  */

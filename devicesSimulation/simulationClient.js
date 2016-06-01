@@ -523,21 +523,19 @@ function callSimulationEngineAPI(method, paths, body){
 	var userVcapSvc = JSON.parse(process.env.USER_PROVIDED_VCAP_SERVICES || '{}');
 	var vcapSvc = userVcapSvc.devicesSimulation;
 	if (vcapSvc) {
-		console.log("!!! connecting to simulation engine using credentials from USER_PROVIDED_VCAP_SERVICES !!!");
 		simulationCreds = vcapSvc[0];
-	} else if (process.env.USER_USE_SHARED_SIMULATION_ENGINE) {
-		// old hosted one
-		console.log("!!! connecting to shared simulation engine !!!");
-		simulationCreds = {
-			"uri": "https://autostartersimulationengine.mybluemix.net/api",
-			"apiKey": "b52f6b93-5b22-4e76-a765-b3c8ad7a72a8",
-			"apiToken": "21b750f1-43ee-4c92-a11e-1a30ff503feb"
-		};
+		if(!simulationCreds.uri){
+			// use simulation engine in this application. 
+			simulationCreds.uri = appEnv.url + "/api";
+		}
+		console.log("!!! connecting to simulation engine using credentials from USER_PROVIDED_VCAP_SERVICES !!! : " + simulationCreds.url);
 	} else {
+		// use simulation engine in this application. 
+		// apiKey and apiToken should be same as values defined in deviceSimulationEngine/api.js
 		simulationCreds = {
 			uri: appEnv.url + "/api",
-			apiKey: "b52f6b93-5b22-4e76-a765-b3c8ad7a72a8",
-			apiToken: "21b750f1-43ee-4c92-a11e-1a30ff503feb"
+			apiKey: "PUT_YOUR_OWN_API_KEY",
+			apiToken: "PUT_YOUR_OWN_API_TOKEN"
 		};
 	}
 	

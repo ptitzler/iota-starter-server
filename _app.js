@@ -161,8 +161,12 @@ var onReservationClosed = function(reservation){
 	return findLatestDeviceTrip(deviceID).then(function(trip){
 			return trip ? trip : pickSimulatedTrip(); // redirect to simulated trips when the trip is missing
 		}).then(function(trip){
-			reservation.trip_id = trip.trip_id;
-			reservation.trip_deviceID = trip.deviceID; // for debug
+			if(trip){
+				reservation.trip_id = trip.trip_id;
+				reservation.trip_deviceID = trip.deviceID; // for debug
+			}else{
+				console.error("Failed to find a trip for reservation.")
+			}
 			return reservation;
 		});
 };
