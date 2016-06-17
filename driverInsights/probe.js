@@ -129,7 +129,7 @@ var driverInsightsProbe = {
 				method: 'POST',
 				url: node.baseURL+api+'?tenant_id='+node.tenant_id,
 				headers: {
-					'Content-Type':'application/json; charset: UTF-8'
+					'Content-Type':'application/json; charset=UTF-8'
 				},
 				rejectUnauthorized: false,
 				auth: {
@@ -163,7 +163,7 @@ var driverInsightsProbe = {
 				method: 'GET',
 				url: node.baseURL+api+'?tenant_id='+node.tenant_id,
 				headers: {
-//					'Content-Type':'application/json; charset: UTF-8',
+//					'Content-Type':'application/json; charset=UTF-8',
 				},
 				rejectUnauthorized: false,
 				auth: {

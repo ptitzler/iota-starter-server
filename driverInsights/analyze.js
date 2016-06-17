@@ -87,7 +87,7 @@ _.extend(driverInsightsAnalyze, {
 				method: 'POST',
 				url: config.baseURL+api+'?tenant_id='+config.tenant_id,
 				headers: {
-					'Content-Type':'application/json; charset: UTF-8',
+					'Content-Type':'application/json; charset=UTF-8',
 					"Content-Length": Buffer.byteLength(body)
 				},
 				body: body
@@ -539,7 +539,7 @@ _.extend(driverInsightsAnalyze, {
 			method: method,
 			url: uri,
 			headers: {
-				"Content-Type": "application/json; charset: UTF-8"
+				"Content-Type": "application/json; charset=UTF-8"
 			}
 		};
 		_.extend(options, this.authOptions);
