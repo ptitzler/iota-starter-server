@@ -4,10 +4,18 @@ A demo app that uses Internet of Things Platform, Context Mapping and Driver Beh
 ## Overview
 With IoT for Automotive Starter app, you will experience a simulation of how Tom, an automobile owner and driver, can use a mobile app to rent a car provided by an automotive company. This new type of service will help the automotive company attract and retain customers. The design of future cars and services can be based on this new source of customer and vehicle data. You will use a mobile app on an iOS phone and experience how Tom can find an available car located near him and reserve the car. You will experience how Tom can review his driving behavior, which is analyzed by Driver Behavior service on Bluemix.
 
-This app demonstrates how quickly you can build an app on Bluemix using Internet of Things Platform, Context Mapping and Driver Behavior services. You can follow the steps below to set up the IoT for Automotive Starter app.
+This app demonstrates how quickly you can build an app on Bluemix using the following services:
+
+   * [IBM Watson IoT Context Mapping](https://console.ng.bluemix.net/catalog/services/context-mapping/)
+   * [IBM Watson IoT Driver Behavior](https://console.ng.bluemix.net/catalog/services/driver-behavior/)
+   * [IBM Watson IoT Platform](https://console.ng.bluemix.net/catalog/services/internet-of-things-platform/)
+   * [Cloudant NoSQL DB](https://console.ng.bluemix.net/catalog/services/cloudant-nosql-db/)
+
+You can follow the steps below to set up the IoT for Automotive Starter app.
 
 ## Application Requirements
-You need to install a mobile app on an iOS phone to experience the simulation.
+You need to install a mobile application on an iOS phone to experience the simulation.
+A mobile application source code is available in [this GitHub repository](https://github.com/ibm-watson-iot/iota-starter-carsharing)
 
 ## Deploy the app on Bluemix
 You can deploy your own instance of IoT Automotive Starter app to Bluemix.
@@ -174,6 +182,20 @@ Your device is expected to publish the following event to the Internet of Things
 }
 ```
 The `lat` and `lng` are required to show your car on a map on your mobile app. Set the  location of your device as values of the `lat` and `lng`. When you record your trip route after you reserve the car, the `trip_id` and `speed` are also required. The same `trip_id` must be set during the reservation.
+
+## Implementation
+
+The following diagram shows the components involved in the application and flows between the components. 	
+
+![Components and flows](docs/components_and_flow.png)
+
+* **Reservation** handles a request related to a reservation. [routes/user/reservation.js](routes/user/reservation.js) has the implementation.
+* **Car Control** gets a request for controlling a car device e.g. unlock and lock a car. It sends a command to the target car through IoT Platform. [routes/user/reservation.js](routes/user/reservation.js) contains implementation for /carControl end point.
+* **Driver Profile** handles a request to access driver's behaviors using Driver Behavior service. [routes/user/insights.js](routes/user/insights.js) defines the end point and [driverInsights/analyze.js](driverInsights/analyze.js) has the implementation. 
+* **Driving Analysis** gets events containing probe data from registered cars through IoT Platform and sends the probe data to Context Mapping service to get the corrected location, then sends the corrected location to Driver Behavior service to get the driver's behaviors. [driverInsights/probe.js](driverInsights/probe.js) is the entry point to explore the implementation. It also stores the probe data to Cloudant database "trip_route" that is used to retrieve a trip route (see [driverInsights/tripRoutes.js](driverInsights/tripRoutes.js)).
+
+* **Simulated Driving Data** is preset driving data under [devicesSimulation/data](devicesSimulation/data) folder. The data is passed to Driving Analysis directly in [devicesSimulation/simulationImporter.js](devicesSimulation/simulationImporter.js) that is called in [_app.js](_app.js). 
+* **Cars (Simulator)** simulates car behaviors. The implementation is under [devicesSimulationEngine](devicesSimulationEngine) folder. 
 
 ## Report Bugs
 If you find a bug, please report it using the [Issues section](https://github.com/ibm-watson-iot/iota-starter-server/issues).

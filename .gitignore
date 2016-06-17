@@ -1,2 +1,3 @@
 /node_modules/
 /_ghe_copy_repo.properties
+.DS_Store
