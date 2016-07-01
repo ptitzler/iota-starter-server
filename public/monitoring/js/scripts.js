@@ -15,9 +15,9 @@
  */
 
 var modalCalls = document.querySelectorAll('.em-Modal-Call');
-var modalCallsArray = Array.prototype.slice.call(modalCalls,0);
+var modalCallsArray = Array.prototype.slice.call(modalCalls, 0);
 
-modalCallsArray.forEach(function(el) {    
+modalCallsArray.forEach(function(el) {
     if (document.getElementById(el.rel)) {
         el.onclick=function(e){
             e.preventDefault();
@@ -44,8 +44,8 @@ modalCallsArray.forEach(function(el) {
             };
 
             document.getElementById(el.rel).querySelector('.em-Modal-Content .em-Modal-Close').addEventListener("click", close);
-
-            document.querySelectorAll('.em-Modal-Content ul.modalMenu a').forEach(function(modalLink) {
+            
+            Array.prototype.slice.call(document.querySelectorAll('.em-Modal-Content ul.modalMenu a'), 0).forEach(function(modalLink) {
                 modalLink.addEventListener("click", close);
             });
         };
