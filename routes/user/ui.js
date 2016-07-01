@@ -47,3 +47,8 @@ uiRouter.get('/ui/behaviorsmap/:trip_uuid', /* authenticate, */ function(req, re
 uiRouter.get('/ui/dashboard', /* authenticate, */ function(req, res) {
 	res.render("dashboard", {});
 });
+
+uiRouter.get('/ui/listpage', /* authenticate, */ function(req, res) {
+	res.render("listpage", {});
+});
+

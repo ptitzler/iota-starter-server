@@ -1,0 +1,64 @@
+/**
+ * Copyright 2016 IBM Corp. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+header {
+    position: fixed;
+    z-index: 1000;
+    display: table;
+    top: 0;
+    background: #1b3649;
+    color: #fff;
+    width: 100%;
+}
+header .floatLeft,
+header .floatRight p {
+    padding: 15px 0;
+    margin: 0;
+}
+header .productTitle a {
+    color: #fff;
+    font-size: medium;
+}
+.container {
+    padding: 20px 30px;
+    margin: 0 auto;
+    text-align: left;
+}
+.noTopPadding {
+    padding-top: 0;
+    padding-bottom: 0;
+}
+.floatRight {
+    float: right;
+}
+.floatLeft {
+    float: left;
+}
+.alignCener {
+	text-align: center; 
+}
+.content .mainContent {
+    position: relative;
+    padding-top: 65px;
+    padding-left: 8px;
+    padding-right: 8px;
+}
+.content .mainContent h4 {
+	margin-left: 10px;
+	font-weight: 500;
+    color: #2a506d;
+    text-transform: uppercase;
+}

@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<!----------------------------------------------------------------------------
+   Copyright 2016 IBM Corp. All Rights Reserved.
+   
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+   
+        http://www.apache.org/licenses/LICENSE-2.0
+        
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+------------------------------------------------------------------------------>
+<html>
+<head>
+    <title>IoT for Automotive Starter Experience - Monitoring</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <link rel="stylesheet" href="css/bootstrap.css" media='all' />
+    <link rel='stylesheet' href='css/style.css' type='text/css' media='all' />
+    <link rel='stylesheet' href='components/realtime-map.css' type='text/css' media='all' />
+    <link rel="stylesheet" href="/admin/components/device-list.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/c3/0.4.9/c3.min.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/ol3/3.5.0/ol.css"/>    
+    
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.1.1/js/bootstrap.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.5.5/angular.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.5.5/angular-route.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.5.5/angular-animate.js"></script>
+    <!-- UI-Router -->
+    <script src="https://angular-ui.github.io/ui-router/release/angular-ui-router.js"></script>
+    <!-- RxJS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/rxjs/3.1.2/rx.lite.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/rxjs-dom/7.0.3/rx.dom.js"></script>
+    
+    <!-- OpenLayers -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ol3/3.5.0/ol.js"></script>
+    
+    <!-- Additional libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.8.2/underscore-min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.12.0/moment.min.js"></script>
+    
+    <script type="text/javascript">
+        angular.element(document.getElementsByTagName('head')).append(angular.element('<base href="' + window.location.pathname + '" />'));
+    </script>
+    
+    <!--[if lt IE 9]>
+    <script src="http://html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/flexibility/1.0.6/flexibility.js"></script>
+    <![endif]-->
+</head>
+<body ng-app="systemMonitoring">
+    <header>
+        <div class="container noTopPadding">
+            <div class="floatLeft productTitle productTitleWide">
+                <a ui-sref="overview"><strong>IoT for Automotive Starter Experience - Monitoring</strong></a>
+            </div>
+            <div class="floatLeft productTitle productTitleNarrow">
+                <a ui-sref="overview">IoT for Automotive</a>
+            </div>
+            
+            <div class="floatRight">
+                <div class="userImg medium-hide">
+                    <img src="img/user.jpg" class="circularImg" />
+                </div>
+                
+                <p class="floatRight medium-hide">
+                    Archie
+                </p>
+                
+                <p class="floatRight medium-show large-hide">
+                    <a href="#" class="btn btn-demo em-Modal-Call" rel="loginModal">
+                        <i class="icon-menu"></i>
+                    </a>
+                </p>
+            </div>
+        </div>
+    </header>
+    
+    <div class="content">
+        <aside class="sidebar" ng-controller="sidebar">
+            <ul class="sidebarItems">
+                <li ng-repeat="sidebarItem in sidebarItems" ui-sref-active="active">
+                    <a ui-sref="{{sidebarItem.route}}"><i class="{{sidebarItem.icon}}"></i>{{sidebarItem.title}}</a>
+                </li>
+            </ul>
+        </aside>
+        
+        <div class="mainContent">
+            <div ui-view></div>
+        </div>
+    </div>
+    
+    <div class="em-Modal" id="loginModal" ng-controller="sidebar">
+        <div class="em-Modal-Content">
+            <div class="em-Modal-Close">
+                <a href="#">
+                    <i class="icon-close"></i>
+                </a>
+            </div>
+
+            <ul class="modalMenu">
+                <li ng-repeat="sidebarItem in sidebarItems" ui-sref-active="active">
+                    <a ui-sref="{{sidebarItem.route}}">
+                        <i class="{{sidebarItem.icon}} iconBlock"></i>
+                        {{sidebarItem.title}}
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.7/d3.min.js" charset="utf-8"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/c3/0.4.9/c3.min.js" charset="utf-8"></script>
+    <script src="js/ngScripts.js"></script>
+    <script src="js/scripts.js"></script>
+    <script src="components/realtime-map.component.js"></script>
+    <script src="components/number-of-cars.component.js"></script>
+    <script src="components/status-bar-number.component.js"></script>
+    <script src="components/chart-item.component.js"></script>
+    <script src="/admin/components/device-list.component.js"></script>
+</body>
+</html>

@@ -26,6 +26,7 @@
  */
 module.exports = [
 	require('./auth.js').router,
+	require('./device.js'),
 	require('./reservation.js'),
 	require('./insights.js'),
 	require('./ui.js'),

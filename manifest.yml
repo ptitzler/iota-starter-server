@@ -11,6 +11,9 @@ declared-services:
   DriverBehavior:
     label: driverinsights
     plan: free
+  WeatherInsights:
+    label: weatherinsights
+    plan: Free-v2
 
 applications:
   - services:
@@ -18,6 +21,7 @@ applications:
       - MobilityDB
       - ContextMapping
       - DriverBehavior
+      - WeatherInsights
     disk_quota: 1024M
 #    host: iot-automotive-starter
     name: IoT-Automotive-Starter

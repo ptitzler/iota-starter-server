@@ -22,6 +22,7 @@ var cfenv = require("cfenv");
 var fs = require("fs-extra");
 var moment = require("moment");
 var driverInsightsProbe = require("./probe.js");
+var driverInsightsTripRoutes = require('./tripRoutes.js');
 var debug = require('debug')('analyze');
 debug.log = console.log.bind(console);
 
@@ -61,11 +62,15 @@ _.extend(driverInsightsAnalyze, {
 		}
 	},
 
-	/*
+	/**
 	 * Send an analysis job to Driver Behavior service.
 	 */
 	sendJobRequest: function(from/*YYYY-MM-DD*/, to/*YYYY-MM-DD*/){
 		this.getJobInfoList((function(jobList){
+			if(jobList.some(function(job){return job.job_status === "RUNNING"})){
+				console.log("Don't send a job: There are running jobs from this server.");
+				return;
+			}
 			jobList = jobList.filter(function(job){return job.job_status === "SUCCEEDED";});
 			if(this.last_job_ts === 0 && jobList.length > 0){
 				this.last_job_ts = jobList.map(function(job){return moment(job.to).valueOf()})
@@ -113,9 +118,11 @@ _.extend(driverInsightsAnalyze, {
 		}).bind(this));
 	},
 	
-	/*
+	/**
 	 * Get summary of a trip.
 	 * The response is as is of response from Driver Behavior service.
+	 * @param trip_id (optional)
+	 * @alias: getAnalyzedTripSummaryList
 	 */
 	getSummary: function(trip_id){
 		var deferred = Q.defer();
@@ -132,10 +139,16 @@ _.extend(driverInsightsAnalyze, {
 		_.extend(options, this.authOptions);
 		request(options, function(error, response, body){
 			if (!error && response.statusCode === 200) {
-				deferred.resolve(JSON.parse(body));
+				var value = JSON.parse(body);
+				if(value.length == 0 && trip_id){
+					deferred.reject({trip_id: trip_id});
+				}else{
+					deferred.resolve(value);
+				}
 			} else {
-				console.error('analyze: error(getSummary): '+ body );
-				deferred.reject("{ \"error(getSummary)\": \"" + body + "\" }");
+				var msg = 'analyze: error(getSummary): '+ body;
+				console.error(msg);
+				deferred.reject({message: msg, trip_id: trip_id});
 			}
 		});
 		
@@ -145,78 +158,118 @@ _.extend(driverInsightsAnalyze, {
 	/*
 	 * Get list of analysis result.
 	 * The response is as is of response from Driver Behavior service.
-	 * tripIdList: list of trip_id if summary is true, list of trip_uuid if summary is false
-	 * summary: true to get summary of each trip, false to get detail of each trip
+	 * @param idList list of {trip_id, trip_uuid}
+	 * @param summary (optional) true to get summary of each trip, false to get detail of each trip
+	 * @param allTrips (optional) true to get all trips including trips that don't have a corresponding analysis result yet
 	 */
-	_getListOfTrips: function(tripIdList, summary){
-		if(!tripIdList || tripIdList.length == 0){
+	_getListOfTrips: function(idList, summary, allTrips){
+		if(!idList || idList.length == 0){
 			return Q([]);
 		}
 		var maxNumOfConcurrentCall = 8;
 		var deferred = Q.defer();
-		var retrieveMethod = this[summary ? "getSummary" : "getDetail"].bind(this);
-		var numTrip = tripIdList.length;
+		var retrieveMethod = this[summary ? "getSummary" : "_getDetail"].bind(this);
+		var numTrip = idList.length;
 		var numResponse = 0;
 		var results = [];
 		
-		var f = function(){
+		var f = function(error, body){
+			if(error && error.trip_id && allTrips){
+				// may be analysis is not done yet
+				// add raw trip info instead of analysis result
+				var b = error;
+				body = summary ? [b] : b;
+			}
+			if(body){
+				if(summary){
+					results = results.concat(body);
+				}else{
+					results.push(body);
+				}
+			}
 			if (++numResponse==numTrip) {
 				deferred.resolve(results);
-			}else if(tripIdList.length > 0){
-				retrieveMethod(tripIdList.shift()).then(successf, f);
+			}else if(idList.length > 0){
+				var id = idList.shift();
+				retrieveMethod(id.trip_id, id.trip_uuid).then(successf, f);
 			}
 		}.bind(this);
 		var successf = function(body){
-			if(summary){
-				results = results.concat(body);
-			}else{
-				results.push(body);
-			}
-			f();
+			f(null, body);
 		};
 		for(var i=0; i<Math.min(maxNumOfConcurrentCall, numTrip); i++){
-			retrieveMethod(tripIdList.shift()).then(successf, f);
+			var id = idList.shift();
+			retrieveMethod(id.trip_id, id.trip_uuid).then(successf, f);
 		}
 		
 		return deferred.promise;
 	},
 	
-	getList: function(tripIdList){
+	getList: function(tripIdList, allTrips){
 		this.sendJobRequest();
 		
 		if(tripIdList){
-			return this._getListOfTrips(tripIdList, true);
+			var idList = tripIdList.map(function(id){
+				return {trip_id: id};
+			});
+			return this._getListOfTrips(idList, true, allTrips);
 		}else{
 			return this.getSummary();
 		}
+	},
+	
+	/**
+	 * Get an analysis result.
+	 * The response is as is of response from Driver Behavior service.
+	 * @alias getAnalyzedTripInfo
+	 */
+	getDetail: function(tripuuid) {
+		return this._getDetail(null, tripuuid);
 	},
 	
 	/*
 	 * Get an analysis result.
 	 * The response is as is of response from Driver Behavior service.
 	 */
-	getDetail: function(tripuuid) {
-		var deferred = Q.defer();
-		
-		var config = this.driverInsightsConfig;
-		var api = "/drbresult/trip";
-		var options = {
-			method: 'GET',
-			url: config.baseURL+api+'?tenant_id='+config.tenant_id+'&trip_uuid='+tripuuid
-		};
-		_.extend(options, this.authOptions);
-		request(options, function(error, response, body){
-			if (!error && response.statusCode === 200) {
-				deferred.resolve(JSON.parse(body));
-			} else {
-				deferred.reject("{ \"error(getDetail)\": \"" + body + "\" }");
-			}
-		});
-		
-		return deferred.promise;
+	_getDetail: function(trip_id, tripuuid) {
+		if(tripuuid){
+			var deferred = Q.defer();
+			
+			var config = this.driverInsightsConfig;
+			var api = "/drbresult/trip";
+			var options = {
+				method: 'GET',
+				url: config.baseURL+api+'?tenant_id='+config.tenant_id+'&trip_uuid='+tripuuid
+			};
+			_.extend(options, this.authOptions);
+			request(options, function(error, response, body){
+				if (!error && response.statusCode === 200) {
+					deferred.resolve(JSON.parse(body));
+				} else {
+					var msg = 'analyze: error(_getDetail): ' + body;
+					console.error(msg);
+					deferred.reject({message: msg, trip_id: trip_id});
+				}
+			});
+			return deferred.promise;
+			
+		}else if(trip_id){
+			var deferred = Q.defer();
+			driverInsightsTripRoutes.getTripInfo(trip_id).then(function(info){
+				deferred.reject(_.extend(info, {message: "not analyzed yet"}));
+			})["catch"](function(error){
+				var msg = 'analyze: error(_getDetail): ' + error;
+				console.error(msg);
+				deferred.reject({message: msg, trip_id: trip_id});
+			});
+			return deferred.promise;
+
+		}else{
+			return Q({message: "trip_id nor trip_uuid is not specified"});
+		}
 	},
 
-	/*
+	/**
 	 * Get the latest driver behavior.
 	 */
 	getLatestBehavior: function() {
@@ -240,18 +293,18 @@ _.extend(driverInsightsAnalyze, {
 		return deferred.promise;
 	},
 
-	/*
+	/**
 	 * Get an driver behavior specified by trip uuid.
 	 */
 	getBehavior: function(tripuuid) {
 		var deferred = Q.defer();
 		
-		var self = this;
-		this.getDetail(tripuuid).then(function(response){
+		var self = driverInsightsAnalyze;
+		self.getDetail(tripuuid).then(function(response){
 			var subtripsarray = response.ctx_sub_trips;
 			if(!subtripsarray){
 				console.error('analyze: error(getBehavior): no subtrip');
-				deferred.reject("{ \"error(getBehavior)\": \"no subtrip\" }");
+				deferred.reject({message: "analyze: error(getBehavior): no subtrip"});
 				return;
 			}
 			subtripsarray.sort(function(a,b){
@@ -264,7 +317,9 @@ _.extend(driverInsightsAnalyze, {
 				start_latitude: response.start_latitude,
 				start_longitude: response.start_longitude,
 				end_latitude: response.end_latitude,
-				end_longitude: response.end_longitude
+				end_longitude: response.end_longitude,
+				trip_id: response.trip_id,
+				mo_id: response.mo_id,
 			};
 			// behaviors
 			var behaviors = {};
@@ -320,19 +375,28 @@ _.extend(driverInsightsAnalyze, {
 	/*
 	 * Get list of driver behaviors.
 	 * The response is as is of response from Driver Behavior service.
+	 * @param ids list of {trip_uuid, trip_id}
+	 * @param allTrips true to get all trips including trips that don't have a corresponding analysis result yet. 
+	 * @param If allTrips is true, The ids should contains trip_id. 
 	 */
-	_getListOfDetail:function(tripuuids) {
-		return this._getListOfTrips(tripuuids, false);
+	_getListOfDetail:function(ids, allTrips) {
+		return this._getListOfTrips(ids, false, allTrips);
 	},
 	
 	/*
 	 * Calculate driving score for a trip.
 	 */
 	_calculateBehaviorScores: function(trip, scoring){
+		if(!trip.id){
+			// not analyzed yet
+			return scoring || {score:0};
+		}
 		var scoring = scoring || {
-			totalTime: 0
+			totalTime: 0,
+			allBehavior: {totalTime: 0, score:100}
 		};
-		scoring.totalTime += (trip.end_time - trip.start_time);
+		var trip_total_time = trip.end_time - trip.start_time;
+		scoring.totalTime += trip_total_time;
 		
 		behaviorNames.forEach(function(name){
 			if(!scoring[name]){
@@ -343,9 +407,11 @@ _.extend(driverInsightsAnalyze, {
 			}
 		});
 		// calculate time for each behavior in each sub trip
+		var trip_total_badbehavior_time = 0;
 		if (trip.ctx_sub_trips && trip.ctx_sub_trips.length > 0) {
 			var subtripsarray = trip.ctx_sub_trips;
 			// each sub trip
+			var all_behaviors = [];
 			subtripsarray.forEach(function(subtrip, subtripindex){
 				var driving_behavior_details = subtrip.driving_behavior_details;
 				if (driving_behavior_details && driving_behavior_details.length > 0) {
@@ -355,44 +421,62 @@ _.extend(driverInsightsAnalyze, {
 						var behavior = scoring[name];
 						behavior.totalTime += (bhr.end_time - bhr.start_time);
 						behavior.count++;
-					})
+						all_behaviors.push({s:bhr.start_time, e:bhr.end_time});
+					});
 				}
 			});
+			// gather all behaviors in this trip
+			all_behaviors.sort(function(a,b){
+				return a.s - b.s;
+			});
+			// remove dup time
+			for(var i=all_behaviors.length-1;i>0;){
+				if(all_behaviors[i-1].e > all_behaviors[i].s){
+					if(all_behaviors[i-1].e < all_behaviors[i].e){
+						all_behaviors[i-1].e = all_behaviors[i].e;
+					}
+					all_behaviors.splice(i,1);
+					if(i == all_behaviors.length) i--;
+				}else{
+					i--;
+				}
+			}
+			var totalBehaviorTime = 0;
+			all_behaviors.forEach(function(t){
+				totalBehaviorTime += t.e - t.s;
+			});
+			scoring.allBehavior.totalTime += totalBehaviorTime;
 		}
-		// calculate score for each behavior
-		var totalScore = 0;
-		var numOfBehaviors = 0;
+		// calculate score for each behavior and behaviorTotal
 		for (var pname in scoring) {
 			if (pname !== "totalTime" && pname !== "score") {
 				scoring[pname].score = Math.min((1.0 - (scoring[pname].totalTime / scoring.totalTime)) * 100.0, 100.0);
-				numOfBehaviors++;
-				totalScore += scoring[pname].score;
 			}
 		}
 		// calculate score for this trip
-		totalScore += (behaviorNames.length - numOfBehaviors) * 100; // add behaviors with full score
-		scoring.score = numOfBehaviors === 0 ? 100 : totalScore / behaviorNames.length;
+		scoring.score = scoring.allBehavior.score;
 		return scoring;
 	},
 	
-	/*
+	/**
 	 * Get list of driving behavior.
 	 */
-	getTripList: function(tripIdList) {
+	getTripList: function(tripIdList, allTrips) {
 		var deferred = Q.defer();
 		
 		var self = this;
-		this.getList(tripIdList).then(function(response){
+		this.getList(tripIdList, allTrips).then(function(response){
 			if(response && response.length > 0){
-				var tripuuids = response.map(function(summary){
-					return summary.id.trip_uuid;
+				var ids = response.map(function(summary){
+					return {trip_uuid: summary.id && summary.id.trip_uuid, trip_id: summary.trip_id};
 				});
-				self._getListOfDetail(tripuuids).then(function(results){
+				self._getListOfDetail(ids, allTrips).then(function(results){
 					var tripList = results.map(function(trip){
 						var scoring = self._calculateBehaviorScores(trip);
 						return {
 							"score": scoring.score,
-							"trip_uuid": trip.id.trip_uuid,
+							"trip_id": trip.trip_id,
+							"trip_uuid": trip.id && trip.id.trip_uuid,
 							"mo_id": trip.mo_id,
 							"start_time": trip.start_time,
 							"end_time": trip.end_time,
@@ -418,7 +502,7 @@ _.extend(driverInsightsAnalyze, {
 		return deferred.promise;
 	},
 
-	/*
+	/**
 	 * Get statistics of driving behavior.
 	 */
 	getStatistics: function(tripIdList) {
@@ -428,7 +512,7 @@ _.extend(driverInsightsAnalyze, {
 		this.getList(tripIdList).then(function(response){
 			if(response && response.length > 0){
 				var tripuuids = response.map(function(summary){
-					return summary.id.trip_uuid;
+					return {trip_uuid: summary.id && summary.id.trip_uuid};
 				});
 				self._getListOfDetail(tripuuids).then(function(results){
 					//summarize response here
@@ -479,11 +563,11 @@ _.extend(driverInsightsAnalyze, {
 						deferred.resolve(body);
 					} else {
 						console.error('analyze: error(getStatistics): Empty resonse');
-						deferred.reject("{ \"(getStatistics)\": \" Empty \" }");
+						deferred.reject({message: 'analyze: error(getStatistics): Empty resonse'});
 					}
 				}, function(error){
-					console.error('analyze: Error::' + error);
-					deferred.reject("{ \"(getStatistics)\": \" Error \" }");
+					console.error('analyze: Error:' + error);
+					deferred.reject({message: 'analyze: Error:' + error});
 				});
 			}else{
 				deferred.resolve([]); // empty
@@ -494,7 +578,7 @@ _.extend(driverInsightsAnalyze, {
 		return deferred.promise;
 	},
 
-	/*
+	/**
 	* Get Job List
 	*/
 	getJobInfoList: function(callback){
@@ -502,7 +586,7 @@ _.extend(driverInsightsAnalyze, {
 		this._run("GET", "/jobcontrol/jobList", null, null, callback, (this._handleError).bind(this));
 	},
 
-	/*
+	/**
 	* Get a Job 
 	*/
 	getJobInfo: function(jobId, callback){
@@ -510,7 +594,7 @@ _.extend(driverInsightsAnalyze, {
 		this._run("GET", "/jobcontrol/job", {job_id: jobId}, null, callback, (this._handleError).bind(this));
 	},
 	
-	/*
+	/**
 	* Delete a Job
 	*/
 	deleteJobResult: function(jobId, callback){
@@ -622,3 +706,10 @@ _.extend(driverInsightsAnalyze, {
 		}
 	}
 });
+
+
+// Setup alias to align API names for analyzed info with
+// https://console.ng.bluemix.net/docs/services/IotDriverInsights/index.html
+driverInsightsAnalyze.getAnalyzedTripSummaryList = driverInsightsAnalyze.getSummary
+driverInsightsAnalyze.getAnalyzedTripInfo = driverInsightsAnalyze.getDetail;
+

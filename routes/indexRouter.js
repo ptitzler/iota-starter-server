@@ -27,4 +27,3 @@ indexRouter.get('/', function(req, res) {
 indexRouter.get('/debug', function(req, res) {
 	res.render('indexDebug', { appName: appEnv.name });
 });
-

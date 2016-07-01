@@ -23,7 +23,7 @@ var fs = require('fs-extra');
 var WebSocketServer = require('ws').Server;
 var appEnv = require("cfenv").getAppEnv();
 
-var virtualDevice = require("./virtualDevice.js");
+var virtualCar = require("./virtualCar.js");
 
 const TTL = (2 * 24 * 60 * 60 * 1000); //Last access time TTL set for two days
 
@@ -140,7 +140,7 @@ devicesManager.prototype.updateArchDevice = function(archDevice, ws){
 	if(!this.archDevices[archDevice.guid]){
 		console.error("Unknown architecture device" + archDevice.guid);
 		if(ws)
-			ws.send(JSON.stringify({error: "Unknown architecture device" + archDevice.guid}));
+			ws.send(JSON.stringify({error: "Unknown architecture device" + _.escape(archDevice.guid)}));
 		return;
 	}
 
@@ -159,7 +159,7 @@ devicesManager.prototype.addArchDevice = function(archDevice, ws){
 	if(this.archDevices[archDevice.guid]){
 		console.error("Architecture device already exist" + archDevice.guid);
 		if(ws)
-			ws.send(JSON.stringify({error: "Architecture device already exist" + archDevice.guid}));
+			ws.send(JSON.stringify({error: "Architecture device already exist" + _.escape(archDevice.guid)}));
 		return;
 	};
 	archDevice = cleanupArchElement(archDevice);
@@ -171,22 +171,22 @@ devicesManager.prototype.addDevice = function(deviceInstance, ws){
 	if(this.devices[deviceInstance.deviceID]){
 		console.error("device already exist");
 		if(ws)
-			ws.send(JSON.stringify({error: "device already exist: " + deviceInstance.guid}));
+			ws.send(JSON.stringify({error: "device already exist: " + _.escape(deviceInstance.guid)}));
 		return;
 	}
 	if(!this.archDevices[deviceInstance.archDeviceGuid]){
 		console.error("Unknown architecture device" + archDeviceID);
 		if(ws)
-			ws.send(JSON.stringify({error: "Unknown architecture device" + archDeviceID}));
+			ws.send(JSON.stringify({error: "Unknown architecture device" + _.escape(archDeviceID)}));
 		return;
 	}
 	if(!deviceInstance.iotFCredentials){
 		console.error("Unregistered device instance " + deviceInstance.guid);
 		if(ws)
-			ws.send(JSON.stringify({error: "Unregistered device instance " + deviceInstance.guid}));
+			ws.send(JSON.stringify({error: "Unregistered device instance " + _.escape(deviceInstance.guid)}));
 		return;
 	}
-	var device = new virtualDevice(this.archDevices[deviceInstance.archDeviceGuid], deviceInstance);//, /*connect=*/true)
+	var device = new virtualCar(this.archDevices[deviceInstance.archDeviceGuid], deviceInstance);//, /*connect=*/true)
 	this.devices[device.deviceID] = device;
 	this.registerDeviceEvents(device);
 	this.broadcast({messageType: "newDeviceCreated", device: deviceInstance});
@@ -197,7 +197,7 @@ devicesManager.prototype.deleteDevice = function(deviceId){
 	if(!deviceId){
 		console.error("Device already deleted deviceId: " + deviceId);
 		if(ws)
-			ws.send(JSON.stringify({error: "Device already deleted deviceId: " + deviceId}));
+			ws.send(JSON.stringify({error: "Device already deleted deviceId: " + _.escape(deviceId)}));
 		return;
 	}
 	if(this.devices[deviceId]){
@@ -315,7 +315,7 @@ devicesManager.prototype.onClientMessage = function (ws, data){
 	try {
 		var command = JSON.parse(data);
 		if(command.deviceID && !this.devices[command.deviceID]){
-			ws.send(JSON.stringify({error: "No such device : " + command.deviceID}));
+			ws.send(JSON.stringify({error: "No such device : " + _.escape(command.deviceID)}));
 			return;
 		}
 		switch (command.cmdType) {

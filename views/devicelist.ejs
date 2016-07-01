@@ -1,0 +1,60 @@
+<!----------------------------------------------------------------------------
+   Copyright 2016 IBM Corp. All Rights Reserved.
+   
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+   
+        http://www.apache.org/licenses/LICENSE-2.0
+        
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+------------------------------------------------------------------------------>
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Vehicle Management</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.1.1/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="/admin/components/device-list.css" />
+    <link rel="stylesheet" href="/admin/css/style.css" />
+ 	<script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.1.1//js/bootstrap.min.js"></script>
+	<script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.5.5/angular.js"></script>
+	<script src="/admin/components/device-list.component.js"></script>
+	<style>
+		#pageTitle:after {
+			font-weight: 700;
+			content: "IoT for Automotive Starter Experience - Administration";
+		}
+		@media (max-width: 768px) {
+			#pageTitle:after {
+				font-weight: 400;
+				content: "IoT for Automotive";
+			}
+		}
+	</style>
+</head>
+<body>
+    <header>
+        <div class="container noTopPadding">
+            <div class="floatLeft productTitle">
+                <a ui-sref="overview"><span id="pageTitle"></span></a>
+            </div>
+            <div class="floatRight">
+                <p>ADMIN</p>
+            </div>
+        </div>
+    </header>
+    <div class="content">
+	    <div class="mainContent">
+			<div ng-app="devices">
+				<h4 class="alignCener">Vehicle Management</h4>
+				<device-list></device-list>
+			</div>
+		</div>	
+	</div>
+</body>
+</html>

@@ -25,10 +25,12 @@ debug.log = console.log.bind(console);
 
 var IOTF = require('../../watsonIoT');
 var connectedDevices = require('../../workbenchLib').connectedDevicesCache;
-var contextMapping = require('../../driverInsights/contextMapping.js');
+var weatherInsights = require('../../weatherInsights/weatherInsights.js');
 
 var dbClient = require('../../cloudantHelper.js');
+var notificationUtils = require('../../notificationUtils.js');
 var authenticate = require('./auth.js').authenticate;
+var appEnv = require('cfenv').getAppEnv();
 
 //get CD client
 var DB = null;
@@ -38,23 +40,8 @@ dbClient.getDBClient().then(function(db){
 
 var validator = new Validator();
 
-/*
- * Find cars nearby the specific location.
- * For the demonstration, if there is no cars,
- * create several cars automotically around the location.
- */
-router.get('/carsnearby/:lat/:lng', function(req, res) {
-	getCarsNearBy(req.params.lat, req.params.lng).then(function(devices){
-		return res.send(devices);
-	})['catch'](function(err){
-		console.error('error: ' + JSON.stringify(err))
-		if(err.status)
-			return res.status(err.status).send(err.message);
-		else{
-			return res.status(500).send(err);
-		}
-	}).done();
-});
+var THRESHOLD_TO_NOTIFY_RAIN = 1;
+var THRESHOLD_TO_NOTIFY_SNOW = 1;
 
 /*
  * get all active reservations for a login user
@@ -121,6 +108,9 @@ router.post('/reservation', authenticate, function(req, res) {
 				userId: validator.escapeId(req.user.id),
 				status: "active"
 		};
+		if(req.body.deviceId){
+			reservation.deviceId = validator.escapeId(req.body.deviceId);
+		}
 		DB.insert(reservation ,null, function(err, doc){
 			if(err){
 				console.error(err);
@@ -148,7 +138,7 @@ router.put('/reservation/:reservationId', authenticate, function(req, res) {
 			if(req.body.status && req.body.status.toUpperCase() == "CLOSE"){
 				IOTF.sendCommand("ConnectedCarDevice", reservation.carId, "lock");
 				reservation.status = "closed";
-				reservation.actualDropoffTime = Date.now();
+				reservation.actualDropoffTime = Math.floor(Date.now()/1000);
 				debug('Testing if call onReservationClosed or not');
 				if (router.onReservationClosed){
 					debug(' -- calling onReservationClosed...');
@@ -158,6 +148,7 @@ router.put('/reservation/:reservationId', authenticate, function(req, res) {
 
 			reservation.pickupTime = validator.isNumeric(req.body.pickupTime) ? req.body.pickupTime : reservation.pickupTime;
 			reservation.dropOffTime = validator.isNumeric(req.body.dropOffTime) ? req.body.dropOffTime : reservation.dropOffTime;
+			if(req.body.trip_id) reservation.trip_id = req.body.trip_id; 
 
 			promise.then(function(reservation){
 				DB.insert(reservation ,null, function(err, result){
@@ -169,6 +160,8 @@ router.put('/reservation/:reservationId', authenticate, function(req, res) {
 					var device = connectedDevices.getConnectedDevice(reservation.carId);
 					if(device)
 						reservation.carDetails = device;
+
+					cancelWeatherNotification(reservation);
 					return res.send(reservation);
 				});
 			}).done();
@@ -189,7 +182,7 @@ router['delete']('/reservation/:reservationId', authenticate, function(req, res)
 	DB.get(req.params.reservationId ,null,function(err,reservation) {
 		if(err){
 			if(err.error == 'not_found')
-				return res.status(404).send("no such reservation " + req.params.reservationId);
+				return res.status(404).send("no such reservation " + _.escape(req.params.reservationId));
 			else{
 				console.error(err);
 				return res.status(500).end();
@@ -197,7 +190,7 @@ router['delete']('/reservation/:reservationId', authenticate, function(req, res)
 		}
 		if( (reservation.userId !== req.user.id) || (reservation.status !== "active") ){
 			console.error("this reservation is not active or was not made by this user.");
-			return res.status(404).send("no such reservation " + req.params.reservationId);
+			return res.status(404).send("no such reservation " + _.escape(req.params.reservationId));
 		}
 		reservation.status = "canceled";
 		DB.insert(reservation ,null, function(err, result){
@@ -205,6 +198,7 @@ router['delete']('/reservation/:reservationId', authenticate, function(req, res)
 				console.error(err);
 				return res.status(500).end();
 			}
+			cancelWeatherNotification(reservation);
 			return res.send('canceled');
 		});
 	});
@@ -233,12 +227,16 @@ router.post('/carControl', authenticate, function(req, res) {
 				IOTF.sendCommand("ConnectedCarDevice", device.deviceID, "unlock");
 				if(!reservation.pickupLocation || !reservation.actualPickupTime){//if this is first unlock update reservation
 					reservation.pickupLocation = {lat: device.lat, lng: device.lng};
-					reservation.actualPickupTime = Date.now();
+					reservation.actualPickupTime = Math.floor(Date.now() / 1000);
 					reservation.status = "driving";
 					DB.insert(reservation ,null, function(err, result){});
 				}
 				device.status = "Unlocked";
 				reservation.carDetails = device;
+				if(reservation.deviceId){
+					reservation.dropOffLocation = {lat: device.lat, lng: device.lng};
+					setWeatherNotification(reservation);
+				}
 				return res.send(reservation);
 			}
 
@@ -252,99 +250,12 @@ router.post('/carControl', authenticate, function(req, res) {
 	});
 });
 
-/*
- * get connectedDevices - response the connectedDevices
- */
-router.get('/connectedDevices', authenticate, function(req,res){
-	res.send(connectedDevices.getConnectedDevices());
-});
-
 router.get('/ui/reservation', authenticate, function(req, res) {
 	res.render("reservation", {});
 });
-/*
- * ****************** Get Cars Near By Functions ***********************
- */
-/*
- * Get cars nearby
- */
-function getCarsNearBy(lat, lng){
-	
-	// lat and lng variables in this call object are shared among all closures
-	lat = (_.isString(lat)) ? parseFloat(lat) : lat;
-	lng = (_.isString(lng)) ? parseFloat(lng) : lng;
-	
-	// do mapMatch and update the (lat,lng) to matched ones
-	function matchMapOrigin(){
-		// do matchMap with error-fallback option
-		return Q.allSettled([contextMapping.matchMap(lat, lng), 'default'])
-				.spread(function(matchResult, defaultResult){
-					if (matchResult.state == 'fulfilled'){
-						lat = matchResult.value.lat;
-						lng = matchResult.value.lng;
-					}
-				});
-	}
-	
-	function findExistingCarsNearBy(){
-		var devices = connectedDevices.getConnectedDevices();
-		var devicesNearBy = devices.filter(function(device){
-			if(!device.lat || !device.lng)
-				return false;
-			var distance = getDistance(
-					{latitude: device.lat, longitude: device.lng},
-					{latitude: lat, longitude: lng}
-			);
-			return distance < 1000;//first filter out those who are in radius of 1000
-		}).map(_.clone);
-		return devicesNearBy;
-	}
-	
-	function filterOutUnreservedCars(devices){
-		var devicesIds = _.pluck(devices, 'deviceID');
-		return dbClient.searchView('activeReservations', {keys: devicesIds}).then(function(result){
-			var activeDeviceIds = _.pluck(result.rows, 'key');
-			var result = devices.filter(function(device){
-				return activeDeviceIds.indexOf(device.deviceID) < 0; // retain if missing
-			});
-			return result;
-		});
-	}
-	
-	function reviewAndUpdateList(devicesNearBy){
-		// expand car list if necessary
-		if (router.onGetCarsNearbyAsync){
-			// user exit to allow demo-cars around
-			return router.onGetCarsNearbyAsync(lat, lng, devicesNearBy)
-				.then(filterOutUnreservedCars);
-		}else{
-			return Q(devicesNearBy);
-		}
-	}
-	
-	function appendDistance(devices){
-		// add route distance to all devices
-		return Q.all(devices.map(function(device){
-			return contextMapping.routeDistance(lat, lng, device.lat, device.lng)
-					.then(function(dist){ 
-						device.distance = dist; 
-						return device; 
-					});
-				}));
-	}
-	
-	return matchMapOrigin()
-		.then(dbClient.cleanupStaleReservations)
-		.then(findExistingCarsNearBy)
-		.then(filterOutUnreservedCars)
-		.then(reviewAndUpdateList)
-		.then(appendDistance)
-		.then(dbClient.getDeviceDetails);
-}
 
 //Callback onGetCarsNearby: override & respond with - function(lat,lng,carsNearBy)
 //- carsNearBy is an array containing cars
-router.onGetCarsNearbyAsync = null;
 router.onReservationClosed = null;
 
 /*
@@ -385,45 +296,88 @@ function getActiveUserReservation(reservationId, userid){
 	DB.get(reservationId ,null,function(err,reservation) {
 		if(err){
 			if(err.error == 'not_found')
-				deferred.reject( {status: 404, message: "no such reservation " + reservationId} );
+				deferred.reject( {status: 404, message: "no such reservation " + _.escape(reservationId)} );
 			else{//db error
 				console.error(err);
 				deferred.reject( {status: 500, message: err.message} );
 			}
 		}
 		else if(reservation.userId !== userid)//reservation does not belong to current user
-			deferred.reject( {status: 404, message: "no such reservation " + reservationId + " for current user"} );
+			deferred.reject( {status: 404, message: "no such reservation " + _.escape(reservationId) + " for current user"} );
 		else if(reservation.status !== "active" && reservation.status !== "driving") //reservation not active
-			deferred.reject( {status: 404, message: "no such active reservation " + reservationId} );
-		else
-			deferred.resolve(reservation);
+			deferred.reject( {status: 404, message: "no such active reservation " + _.escape(reservationId)} );
+		else{
+			reservation.carDetails = connectedDevices.getConnectedDevice(reservation.carId);
+			if(!reservation.carDetails){
+				reservation.carDetails = {deviceID: reservation.carId};
+			}
+			dbClient.getDeviceDetails(reservation.carDetails).then(function(device){
+				reservation.carDetails = device;
+				deferred.resolve(reservation);
+			})['catch'](function(err){
+				deferred.resolve(reservation);
+			});
+		}
 	});
 	return deferred.promise;
 };
 
+var weatherNotifications = {}; // reservationId -> timeout
+var NOTIFY_WEATHER_ALERT_BEFORE = 60*60; // 1 hour before
+var DEMO_MODE = true;
+function setWeatherNotification(reservation){
+	cancelWeatherNotification(reservation);
+
+	var dropOffLocation = reservation.dropOffLocation;
+	var dropOffTime = parseInt(reservation.dropOffTime);
+	var now = parseInt((new Date()).getTime()/1000);
+	var delay = (dropOffTime - now > NOTIFY_WEATHER_ALERT_BEFORE) && !DEMO_MODE ? (dropOffTime - now - NOTIFY_WEATHER_ALERT_BEFORE)*1000 : 5000;
+	var timeout = setTimeout(function(){
+		// check if the reservation is active
+		getActiveUserReservation(reservation.reservationId || reservation._id, reservation.userId).then(
+			function(reservation){
+				var queryParam = {
+					latitude: dropOffLocation.lat,
+					longitude: dropOffLocation.lng,
+					stimeInSec: dropOffTime - 60*60,
+					etimeInSec: dropOffTime
+				};
+				Q.when(weatherInsights.getForecastsInRange(queryParam), function(weatherResult){
+					debug("weatherResult: " + JSON.stringify(weatherResult));
+					if(weatherResult.length > 0){
+						if(weatherResult[0].qpf > THRESHOLD_TO_NOTIFY_RAIN || weatherResult[0].snow_qpf > THRESHOLD_TO_NOTIFY_SNOW){
+							notificationUtils.sendMessage(
+									weatherResult[0].phrase_32char + " is expected at drop-off time. You might want to drop-off the car 20 minutes earlier than reservation to avoid " + weatherResult[0].phrase_32char + ".",
+									notificationUtils.CATEGORY_OK,
+									{
+										"reservationId": reservation.reservationId || reservation._id,
+										"type": "weather",
+										"appRoute": appEnv.url,
+										"appGUID": BM_APPLICATION_ID,
+										"customAuth": VCAP_SERVICES.AdvancedMobileAccess ? "true" : ""
+									},
+									[reservation.deviceId]
+							);
+						}
+					}
+				});
+			}
+		)["catch"](function(err){
+			debug(err + ": weather notification is not sent");
+		}).done();
+	}, delay);
+	weatherNotifications[reservation.reservationId] = timeout;
+}
+function cancelWeatherNotification(reservation){
+	var timeout = weatherNotifications[reservation.reservationId || reservation._id];
+	if(timeout){
+		clearTimeout(timeout);
+	}
+}
+
 /*
  * ****************** Generic Utility Functions ***********************
  */
-
-/**
- * Calculate distance in meters between two points on the globe
- * - p0, p1: points in {latitude: [lat in degree], longitude: [lng in degree]}
- */
-function getDistance(p0, p1) {
-	// Convert to Rad
-	function to_rad(v) {
-		return v * Math.PI / 180;
-	}
-	var latrad0 = to_rad(p0.latitude);
-	var lngrad0 = to_rad(p0.longitude);
-	var latrad1 = to_rad(p1.latitude);
-	var lngrad1 = to_rad(p1.longitude);
-	var norm_dist = Math.acos(Math.sin(latrad0) * Math.sin(latrad1) + Math.cos(latrad0) * Math.cos(latrad1) * Math.cos(lngrad1 - lngrad0));
-	
-	// Earths radius in meters via WGS 84 model.
-	var earth = 6378137;
-	return earth * norm_dist;
-};
 
 function Validator(){
 	this.isNumeric = function(str){return !isNaN(str)};

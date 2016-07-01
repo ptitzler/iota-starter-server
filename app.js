@@ -24,6 +24,8 @@ var bodyParser = require('body-parser');
 var cors = require('cors');
 var helmet = require('helmet');
 var appEnv = require('cfenv').getAppEnv();
+var appVersion = require("./package.json").version; // This application assumes that package.json is existing and contains version number
+
 //Deployment tracker code snippet
 require("cf-deployment-tracker-client").track();
 /*
@@ -128,16 +130,43 @@ app.use(function (req, res, next) {
 		next();
 	}
 });
+//test referer
+app.use(function(req, res, next){
+	var referrer = req.headers['referer'];
+	if(!referrer){
+//		console.error('accepted due to no referrer');
+		return next();
+	}
+	
+	referrer = referrer.toLowerCase();
+	for(var i=0; i<appEnv.urls.length; i++){
+		var url = appEnv.urls[i].toLowerCase();
+		if(referrer.indexOf(url, 0) === 0)
+//			console.error('accepted as the server name matched');
+			return next(); // accept
+	}
+	
+	//reject
+	console.error('Rejected request as the referrer [%s] does not match to any server URLs.');
+	res.status(403).send('Unauthorized');
+});
+
+// add version
+app.use(function(req, res, next){
+	res.setHeader("iota-starter-car-sharing-version", appVersion);
+	next();
+});
 
 //static serve 'public' folder
 app.use(express.static(path.join(__dirname, 'public'), {extensions: ['html', 'htm']}));
 
 //add routes
-app.use('/',      require('./routes/indexRouter.js'));
-app.use('/admin', require('./routes/adminRouter.js'));
-app.use('/user',  require('./routes/user'));
-app.use('/apps',  require('./routes/customIdentityProviderRouter.js'));
-app.use('/api',   require('./devicesSimulationEngine/api.js'));
+app.use('/',           require('./routes/indexRouter.js'));
+app.use('/admin',      require('./routes/admin'));
+app.use('/user',       require('./routes/user'));
+app.use('/apps',       require('./routes/customIdentityProviderRouter.js'));
+app.use('/monitoring', require('./routes/monitoring'));
+app.use('/api',        require('./devicesSimulationEngine/api.js'));
 
 //catch 404 and forward to error handler
 app.use(function(req, res, next) {

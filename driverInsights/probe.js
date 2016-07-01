@@ -30,16 +30,23 @@ var tripRouteCache = {};
 var insertTripRouteTimer = null;
 IOTF.on("+", function(payload, deviceType, deviceId){
 	// check mandatory field
-	if(isNaN(payload.lng) || isNaN(payload.lat) || !payload.trip_id || isNaN(payload.speed)){
-		return;
-	}
-	if(payload.lng == 0 && payload.lat == 0){
-		return;
+	if(!payload.trip_id || payload.trip_id.length === 0) return;
+	if(!(payload.matched_longitude && 
+			payload.matched_latitude && 
+			payload.matched_heading && 
+			(payload.matched_link_id || payload.link_id) && 
+			payload.speed)){
+		// need map matching
+		if(isNaN(payload.lng) || isNaN(payload.lat) || !payload.trip_id || isNaN(payload.speed)){
+			return;
+		}
+		if(!payload.lng || !payload.lat){
+			return;
+		}
 	}
 
 	// assign ts if missing
-	if(!payload.ts)
-		payload.ts = Date.now();
+	payload.ts = moment(payload.ts || Date.now()).valueOf();
 	
 	driverInsightsProbe.mapMatch(deviceType, deviceId, payload).then(function(prob){
 		driverInsightsProbe.sendProbeData([prob]);
@@ -68,7 +75,7 @@ var driverInsightsProbe = {
 
 	driverInsightsConfig: function(){
 		var userVcapSvc = JSON.parse(process.env.USER_PROVIDED_VCAP_SERVICES || '{}');
-		var vcapSvc = VCAP_SERVICES.driverinsights || userVcapSvc.driverinsights;
+		var vcapSvc = userVcapSvc.driverinsights || VCAP_SERVICES.driverinsights;
 		if (vcapSvc) {
 			var dirverInsightsCreds = vcapSvc[0].credentials;
 			return {
@@ -83,34 +90,41 @@ var driverInsightsProbe = {
 	
 	mapMatch: function(deviceType, deviceId, payload){
 		var self = this;
-		return contextMapping.matchMapRaw(payload.lat, payload.lng)
-			.then(function(results){
-				if (results.length == 0)
-					return Q.reject(new Error('rejecting as no matched location.'));
-				
-				var matched = results[0];
-				var m = moment(payload.ts);
-				var prob = {
-						"timestamp": m.format(), // ISO8601
-						"matched_longitude": matched.matched_longitude,
-						"matched_latitude": matched.matched_latitude,
-						"matched_heading": matched.matched_heading,
-						"matched_link_id": matched.matched_link_id || matched.link_id,
-						"speed": payload.speed,
-						"mo_id": deviceId,
-						"trip_id": payload.trip_id
-					};
-				if(!matched.road_type && prob.matched_link_id){
-					return contextMapping.getLinkInformation(prob.matched_link_id).then(function(linkInfo){
-						if(linkInfo.properties && linkInfo.properties.type){
-							prob.road_type = linkInfo.properties.type;
-						}
-						return prob;
-					}, function(error){return prob;});
-				}else{
+		var getProbe = function(results){
+			if (results.length == 0)
+				return Q.reject(new Error('rejecting as no matched location.'));
+			
+			var matched = results[0];
+			var m = moment(payload.ts);
+			var prob = {
+					"timestamp": m.format(), // ISO8601
+					"matched_longitude": matched.matched_longitude,
+					"matched_latitude": matched.matched_latitude,
+					"matched_heading": matched.matched_heading,
+					"matched_link_id": matched.matched_link_id || matched.link_id,
+					"speed": payload.speed || 0,
+					"mo_id": deviceId,
+					"trip_id": payload.trip_id
+				};
+			if(!matched.road_type && prob.matched_link_id){
+				return contextMapping.getLinkInformation(prob.matched_link_id).then(function(linkInfo){
+					if(linkInfo.properties && linkInfo.properties.type){
+						prob.road_type = linkInfo.properties.type;
+					}
 					return prob;
-				}
-			});
+				}, function(error){return prob;});
+			}else{
+				return prob;
+			}
+		}
+		if(payload.matched_longitude && 
+			payload.matched_latitude && 
+			payload.matched_heading && 
+			(payload.matched_link_id || payload.link_id) && 
+			payload.speed){
+			return Q(getProbe([payload]));
+		}
+		return contextMapping.matchMapRaw(payload.lat, payload.lng).then(getProbe);
 	},
 	
 	/*
@@ -157,6 +171,8 @@ var driverInsightsProbe = {
 	},
 	
 	getCarProbeDataListAsDate: function(callback) {
+		var deferred = Q.defer();
+		
 		var node = this.driverInsightsConfig;
 		var api = "/datastore/carProbe/dateList";
 		var options = {
@@ -174,12 +190,15 @@ var driverInsightsProbe = {
 		};
 		request(options, function(error, response, body){
 			if (!error && response.statusCode === 200) {
-				callback(body);
+				callback && callback(body);
+				deferred.resolve(body);
 			} else {
 				console.error('error: '+ body );
-				callback("{ \"error(getCarProbeDataListAsDate)\": \"" + body + "\" }");
+				callback && callback("{ \"error(getCarProbeDataListAsDate)\": \"" + body + "\" }");
+				deferred.reject(error||body);
 			}
 		});
+		return deferred.promise;
 	}
 }
 

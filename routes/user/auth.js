@@ -80,7 +80,7 @@ var authenticate = function(req,res,next){
 	if(req.user)//authenticated request move on
 		next();
 	else //authenticate  first
-		passport.authenticate('mca-backend-strategy')(req,res,next);
+		passport.authenticate('mca-backend-strategy', {session: false })(req,res,next);
 };
 module.exports.authenticate = authenticate; // export the authentication router
 

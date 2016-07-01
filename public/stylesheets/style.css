@@ -279,4 +279,14 @@ a.ibm-top-link:hover:after {
   	padding-left: 0px;
 	}
 }
-
+.footer-links{
+	list-style: none;
+	text-align: left;
+}
+.footer-links .link{
+	font-size: 28px;
+	color: #0F0F0F;
+}
+.footer-links h4{
+	margin-bottom: 20px;
+}

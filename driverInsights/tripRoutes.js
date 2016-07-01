@@ -21,6 +21,7 @@ var debug = require('debug')('tripRoutes');
 debug.log = console.log.bind(console);
 var dbClient = require('./../cloudantHelper.js');
 var driverInsightsAnalyze = require('../driverInsights/analyze');
+var moment = require('moment');
 
 var TRIPROUTES_DB_NAME = "trip_routes";
 
@@ -35,6 +36,37 @@ _.extend(tripRoutes, {
 		this.db = dbClient.getDB(TRIPROUTES_DB_NAME, this._getDesignDoc());
 	},
 
+	getTripInfo: function(trip_id){
+		var deferred = Q.defer();
+		Q.when(this.db, function(db){
+			db.get(trip_id, function(err, body){
+				if(err){
+					deferred.reject(err);
+				}else{
+					if(body.routes && body.routes.length > 0){
+						var numRoutes = body.routes.length;
+						var route0 = body.routes[0];
+						var routeZ = body.routes[numRoutes-1];
+						deferred.resolve({
+							trip_id: trip_id, 
+							start_latitude: route0.lat-0, 
+							start_longitude: route0.lng-0,
+							end_latitude: routeZ.lat-0, 
+							end_longitude: routeZ.lng-0,
+							start_time: moment(route0.ts).valueOf(),
+							end_time: moment(routeZ.ts).valueOf()
+						});
+					}else{
+						deferred.reject("no routes");
+					}
+				}
+			})["catch"](function(error){
+				deffered.reject(error);
+			});
+		});
+		return deferred.promise;
+	},
+	
 	getTripLocation: function(trip_id){
 		var deferred = Q.defer();
 		Q.when(this.db, function(db){
@@ -88,31 +120,50 @@ _.extend(tripRoutes, {
 			});
 		});
 	},
-	getTripRoute: function(trip_uuid, callback){
+	
+	getTripRouteById: function(trip_id){
+		var deferred = Q.defer();
+		var self = this;
+		Q.when(self.db, function(db){
+			db.get(trip_id, function(err, body){
+				if(err){
+					console.error(err);
+					deferred.reject(err);
+					return;
+				}
+				var coordinates = body.routes.map(function(payload){
+					var lng = payload.matched_longitude || payload.lng || payload.longitude;
+					var lat = payload.matched_latitude || payload.lat || payload.latitude;
+					return [lng, lat];
+				});
+				var geoJson = {
+						type: "FeatureCollection",
+						features: [{type: "Feature", geometry: {type: "LineString", coordinates: coordinates}}]
+				};
+				deferred.resolve(geoJson);
+			});
+		})["catch"](function(error){
+			console.error(error);
+			deferred.reject(error);
+		});
+		return deferred.promise;
+	},
+
+	getTripRoute: function(trip_uuid){
+		var deferred = Q.defer();
 		var self = this;
 		Q.when(driverInsightsAnalyze.getDetail(trip_uuid), function(response){
 			var trip_id = response.trip_id;
-			Q.when(self.db, function(db){
-				db.get(trip_id, function(err, body){
-					if(err){
-						console.error(err);
-						callback(err);
-						return;
-					}
-					var coordinates = body.routes.map(function(payload){
-						var lng = payload.matched_longitude || payload.lng || payload.longitude;
-						var lat = payload.matched_latitude || payload.lat || payload.latitude;
-						return [lng, lat];
-					});
-					var geoJson = {
-							type: "FeatureCollection",
-							features: [{type: "Feature", geometry: {type: "LineString", coordinates: coordinates}}]
-					};
-					callback(geoJson);
-				});
+			self.getTripRouteById(trip_id).then(function(geoJson){
+				deferred.resolve(geoJson);
 			});
+		})["catch"](function(error){
+			console.error(error);
+			deferred.reject(error);
 		});
+		return deferred.promise;
 	},
+
 	getTripsByDevice: function(deviceID, limit){
 		return this._searchTripsIndex({q:'deviceID:'+deviceID, sort: '-org_ts', limit:(limit||5)})
 			.then(function(result){

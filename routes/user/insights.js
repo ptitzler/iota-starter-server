@@ -55,7 +55,7 @@ router.get('/driverInsights/statistics', authenticate, function(req, res) {
 
 router.get('/driverInsights/behaviors', authenticate, function(req, res) {
 	getUserTrips(req).then(function(tripIdList){
-		driverInsightsAnalyze.getTripList(tripIdList).then(function(msg){
+		driverInsightsAnalyze.getTripList(tripIdList, req.query.all).then(function(msg){
 			res.send(msg);
 		});
 	})["catch"](function(error){
@@ -88,9 +88,19 @@ router.get('/driverInsights/behaviors/:trip_uuid', authenticate, function(req, r
 });
 
 router.get("/driverInsights/triproutes/:trip_uuid", function(req, res){
-	driverInsightsTripRoutes.getTripRoute(req.params.trip_uuid, function(msg){
+	driverInsightsTripRoutes.getTripRoute(req.params.trip_uuid).then(function(msg){
 		res.send(msg);
-	});
+	})["catch"](function(error){
+		res.send(error);
+	})
+});
+
+router.get("/triproutes/:trip_id", function(req, res){
+	driverInsightsTripRoutes.getTripRouteById(req.params.trip_id).then(function(msg){
+		res.send(msg);
+	})["catch"](function(error){
+		res.send(error);
+	})
 });
 
 function getUserTrips(req){

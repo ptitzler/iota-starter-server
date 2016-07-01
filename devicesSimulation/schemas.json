@@ -7,7 +7,7 @@
         {
           "name": "sendGeoPos",
           "qos": "1",
-          "payload": "lat,lng,name,status",
+          "payload": "lat,lng,name,status,speed,trip_id,matched_latitude,matched_longitude,matched_heading",
           "pattern": {
             "rate": 1,
             "type": "Periodic"
@@ -39,13 +39,29 @@
         },
         {
           "name": "license"
-        }
+        },
+        {
+          "name": "speed",
+          "defaultValue": "0"
+        },
+        {
+          "name": "trip_id"
+        },
+        {
+          "name": "matched_latitude"
+        },
+        {
+          "name": "matched_longitude"
+        },
+        {
+          "name": "matched_heading"
+        }        
       ],
       "simulation": {
         "onConnectedCode": null,
         "onInitCode": null,
         "onMessageReceptionCode": "if(message == \"lock\"){\n  this.status = \"Locked\";\n  \n}\nelse if(message == \"unlock\"){\n  this.status = \"Unlocked\";  \n}",
-        "onRunningCode": null,
+        "onRunningCode": "{ if(this.status==\"Unlocked\"){ if(!this.lat0){this.lat0=parseFloat(this.lat);this.lng0=parseFloat(this.lng);this.r=0.005;this.th=0;} this.lat=this.r*Math.sin(this.th)+this.lat0; this.lng=this.r*Math.cos(this.th)+this.lng0; this.th+=1;} }",
         "onRunningPeriodSec": "1"
       }
     }

@@ -316,6 +316,10 @@ virtualDevice.prototype.onError = function(err){
 };
 
 virtualDevice.prototype.runBehaviorCode = function(code, hookName, args){
+	if(code instanceof Function){
+		code.call(this, args);
+		return;
+	}
 	var argsNames = "";
 	var argsValues = [];
 	if(args){

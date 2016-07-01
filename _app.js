@@ -23,12 +23,14 @@ var moment = require('moment');
 var debug = require('debug')('_app');
 debug.log = console.log.bind(console);
 
+var connectedDevices = require('./workbenchLib').connectedDevicesCache;
 var simulationClientCtor = require('./devicesSimulation/simulationClient');
 var simulationImporterCtor = require('./devicesSimulation/simulationImporter.js');
 var driverInsightsAnalyze = require('./driverInsights/analyze.js');
 var driverInsightsProbe = require('./driverInsights/probe.js');
 var driverInsightsTripRoutes = require('./driverInsights/tripRoutes.js');
 var contextMapping = require('./driverInsights/contextMapping.js');
+var devices = require('./devices/devices.js');
 
 var dbClient = require('./cloudantHelper.js');
 
@@ -44,6 +46,7 @@ var DISABLE_DEMO_CAR_DEVICES = (process.env.DISABLE_DEMO_CAR_DEVICES || 'false')
  */
 // this will be set to dbClient.onGettingNewDeviceDetails
 var deviceModelSamples; // caches the template file in memory
+var deviceModelSamplesNextSampleIndex = 0;
 var onGettingNewDeviceDetails = function(device){
 	console.log('Generating device details info for ' + device.deviceID + '...');
 	// support functions
@@ -58,9 +61,9 @@ var onGettingNewDeviceDetails = function(device){
 			deviceModelSamples = samples;
 		}
 		// randomly pick one
-		if (!samples)
+		if (!samples || samples.length == 0)
 			return {}
-		return samples[Math.floor(Math.random() * samples.length)];
+		return samples[(deviceModelSamplesNextSampleIndex++) % samples.length];
 	}
 	
 	// prepare a new document property
@@ -89,14 +92,73 @@ var onGettingNewDeviceDetails = function(device){
  */
 
 // a function to be injected to 'reservation.js' to create simulated cars when cars are not available...
+var onGetCarsNearbyPendingOp = null;
+var getOnGetCarsNearbyPendingOp = function(){
+	if(onGetCarsNearbyPendingOp && onGetCarsNearbyPendingOp.isPending()){
+		return onGetCarsNearbyPendingOp;
+	}
+	return Q(); // resolved
+}
 var onGetCarsNearbyAsync = function(lat, lng, devicesNearBy){
 	if (devicesNearBy && devicesNearBy.length > 0)
 		return Q(devicesNearBy);
 	
-	else//create 5 simulated cars for demo
-		return createSimulationAround(lat, lng , 5, 600).then(function(simDevices){
-			return simDevices.map(_.clone);
+	var prevOps = getOnGetCarsNearbyPendingOp();
+	var createNewDevices = Q.allSettled([prevOps])
+		.then(function(){
+			debug('Creating simulation cars...');
+			//create 4 simulated cars for demo
+			var createNewDevices = createSimulationAround(lat, lng , 4, 600).then(function(simDevices){
+				return simDevices.map(_.clone);
+			});
+			return createNewDevices;
 		});
+	
+	// poll the device cache for maximum 15 seconds to make sure all the devies are created
+	onGetCarsNearbyPendingOp = createNewDevices.then(function(newDevices){
+		debug('  waiting for new simulation cars get connected...');
+		var waitForDevicesGettingActive = function(newDevices){
+			var start = Date.now();
+			var deferred = Q.defer();
+			var checkActive = function(){
+				// ensure that the cars are connected
+				var result = newDevices.map(function(device){
+					var connectedDevice = connectedDevices.getConnectedDevice(device.deviceID);
+					 // ensure that data comes from device
+					if(connectedDevice && connectedDevice.lat && connectedDevice.lng){
+						return connectedDevice;
+					}
+					return null;
+				}).filter(function(cachedDevice){
+					return !!cachedDevice;
+				});
+				// resolve when all gets ready
+				if(newDevices.length == result.length){
+					debug('  all new simulation cars are successfully connected to IoT Platform in %d seconds', (Date.now() - start)/ 1000);
+					return deferred.resolve(result);
+				}
+				// wait for more unless timeout is reached
+				if(Date.now() < start + 15000)
+					return setTimeout(checkActive, 1000);
+				// when some of devices are activated, resolve with the devices
+				if(result.length > 0){
+					console.error('WARNING: only %d of %d new simulation cars care connected to IoT Platform within 15 seconds.', result.length, newDevices.length);
+					return deferred.resolve(result);
+				}
+				// otherwise, reject
+				var msg = 'ERROR: none of new simulation cars is present in IoT Platform in 15 seconds.';
+				console.error(msg);
+				return deferred.resolve(result);
+			};
+			setTimeout(checkActive, 1000);
+			return deferred.promise;
+		};
+		return waitForDevicesGettingActive(newDevices);
+	})['finally'](function(){
+		onGetCarsNearbyPendingOp = null; // not necessary but just in case
+	});
+	
+	return onGetCarsNearbyPendingOp;
 };
 
 //a function to be injected to 'reservation.js' to add trip_id from simulated trips when reservation is completed
@@ -112,11 +174,11 @@ var onReservationClosed = function(reservation){
 				//select based on duration of intersection of the actual trip time and reservation time
 				var r = _.max(trips, function(trip){
 					//get the duration
-					var start = Math.max(reservation.actualPickupTime, trip.org_ts);
-					var end = Math.min(reservation.actualDropoffTime || Date.now(), trip.last_ts);
+					var start = Math.max(reservation.actualPickupTime*1000, trip.org_ts);
+					var end = Math.min(reservation.actualDropoffTime*1000 || Date.now(), trip.last_ts);
 					var dur = Math.max(0, end - start); // should be >=0
 					debug('  overwrapped time duration is ' + dur + ' for the trip: ' + JSON.stringify(trip));
-					debug('    reservation.actualPickupTime=' + reservation.actualPickupTime);
+					debug('    reservation.actualPickupTime=' + reservation.actualPickupTime*1000);
 					debug('    trip.org_ts=' + trip.org_ts);
 					debug('    trip.last_ts=' + trip.last_ts);
 					return isNaN(dur) ? -1 : dur;
@@ -190,18 +252,30 @@ function createSimulationAround(lat, lng, numOfCars, radius){
 	
 	// prepare deferred functions for creating simulation
 	var functions = [devicesCache.reserveDevices("ConnectedCarDevice", numOfCars)];
-	function randCarAttributes(){
+	function randCarAttributes(nRetry){
 		var rndLocation = getRandomLocation(lat,lng, radius);
-		return contextMapping.matchMap(rndLocation.lat, rndLocation.lng);
+		return contextMapping.matchMapFirst(rndLocation.lat, rndLocation.lng).then(function(match){
+			if(!match){
+				if(nRetry > 0)
+					return randCarAttributes(nRetry - 1); // retry
+				console.log('  Tried to create a car around [%d,%d], but coudln\'t as there are no map-matched location.', lng, lat);
+			}
+			return match;
+		})['catch'](function(er){
+			console.error('  Tried to create a car around [%d,%d] and map match resulted in error. Using the raw location as fallback.', lng, lat);
+			return {lat: rndLocation.lat, lng: rndLocation.lng};
+		});
 	}
-	for(var i = 0; i < numOfCars; i++)
-		functions.push(randCarAttributes());
+	for(var i = 0; i < numOfCars; i++){
+		functions.push(randCarAttributes(1));
+	}
 	
 	return Q.all(functions)
 		.then(function(results){
 			var devices = results[0];
 			results.shift();
 			var respDevices = devices.map(function(device, index){
+				if(!results[index]) return null;
 				var respDevice = {deviceID: device.deviceID};
 				Object.keys(results[index]).forEach(function(key){
 					var value = results[index][key];
@@ -210,7 +284,7 @@ function createSimulationAround(lat, lng, numOfCars, radius){
 				});
 				simulationClient.connectDevice(device.deviceID);
 				return respDevice;
-			});
+			}).filter(function(device){ return !!device; });
 			return respDevices;
 		});
 };
@@ -267,15 +341,10 @@ function startImportingDrivingHistories(){
 					simulationImporter.loadJsonSimulation(simulationDir + file);
 				}
 			});
-			// Send job request to show "something" for trial user
-			var yesterday = moment().subtract(1, "days").format("YYYY-MM-DD");
-			var today = moment().format("YYYY-MM-DD");
-			setTimeout(function(){
-				driverInsightsAnalyze.sendJobRequest(yesterday, yesterday);
-				driverInsightsAnalyze.sendJobRequest(today, today);
-			}, simulationImporter.FIRST_JOB_REQUEST_TIME);
 		});
-	});
+	})['catch'](function(e){
+		console.error('Error in simulation importer: ', e);
+	}).done();
 	
 	// support func
 	function _isProbeExist(){
@@ -283,9 +352,13 @@ function startImportingDrivingHistories(){
 		driverInsightsProbe.getCarProbeDataListAsDate(function(probe){
 			try{
 				var probe = JSON.parse(probe);
-				deferred.resolve(probe && probe.date && probe.date.length > 0);
+				if(probe['error(getCarProbeDataListAsDate)']){
+					deferred.reject(probe);
+				}else{
+					deferred.resolve(probe && probe.date && probe.date.length > 0);
+				}
 			}catch(ex){
-				deferred.resolve(false);
+				deferred.reject(ex);
 			}
 		});
 		return deferred.promise;
@@ -331,21 +404,71 @@ devicesCache.loadDevices = function(filepath){
  */
 devicesCache.saveDevices = function(){
 	var deferred = Q.defer();
-	var _this = this;
-	DB.insert(this.registeredDevicesDoc ,null, function(err, doc){
-		if(!err){
-			_this.registeredDevicesDoc._rev = doc._rev;
-			deferred.resolve();
-		}
-		else
-			deferred.reject();
-	});
+
+	var getDB = function() {
+		return DB ? Q(DB) :  dbClient.getDBClient().then(function(db) {
+			DB = db;
+			return db;
+		});
+	};
+	
+	var registeredDevices = this.registeredDevicesDoc;
+	var updateDoc = function() {
+		DB.insert(registeredDevices, null, function(err, doc){
+			if(!err){
+				registeredDevices._rev = doc._rev;
+				deferred.resolve();
+			}
+			else
+				deferred.reject();
+		});
+	};
+	
+	// start engine
+	getDB().then(function(db){
+		db.get(registeredDevices._id, null, function(err, doc) {
+			if (!err) {
+				registeredDevices._rev = doc._rev;
+				updateDoc();
+			} else if (err.statusCode === 404) {
+				updateDoc();
+			} else {
+				deferred.reject();
+			} 
+		});
+	})
+
 	return deferred.promise;
+}
+
+/**
+ * Save the `this.registeredDevicesDoc` to store the current list of devices
+ */
+devicesCache.deleteDevice = function(device, force){
+	var deviceID = device.deviceID;
+	if (!force && this.reservedDevices[deviceID]) {
+		return Q.reject("Device is reserved.");
+	}
+
+	if (this.reservedDevices[deviceID]) {
+		this.releaseDevice(deviceID);
+	}
+	if (this.freeDevices[deviceID]) {
+		delete this.freeDevices[deviceID];
+	}
+	this.registeredDevicesDoc.devices = this.registeredDevicesDoc.devices.filter(function(d) {
+		return d.deviceID !== deviceID;
+	});
+	simulationClient && simulationClient.deleteDevice(deviceID);
+	return Q(true);
 }
 
 // release devices
 devicesCache.releaseDevice = function(device){
-	simulationClient.disconnectDevice(device.deviceID);
+	simulationClient && simulationClient.disconnectDevice(device.deviceID);
+	var deviceType = device.typeID;
+	if (!deviceType) return;
+	
 	device.lastRunAttributesValues = [];
 	this.freeDevices[deviceType] = (this.freeDevices[deviceType])? this.freeDevices[deviceType] : [];
 	this.freeDevices[deviceType].push(device);
@@ -398,6 +521,8 @@ devicesCache.reserveDevices = function(deviceType, numOfDevices){
 	}
 	return Q(reservation);
 };
+
+devices.devicesCache = devicesCache;
 
 /*
  * ****************** Generic Utility Functions ***********************
@@ -456,15 +581,42 @@ function getRandomLocation(latitude, longitude, radiusInMeters) {
 	if (!DISABLE_DEMO_CAR_DEVICES){
 		startSimulation()
 		// set simulated cars for the reservation router
+		var deviceRouter = require('./routes/user/device.js');
+		deviceRouter.onGetCarsNearbyAsync = onGetCarsNearbyAsync;
 		var reservationRouter = require('./routes/user/reservation.js');
-		reservationRouter.onGetCarsNearbyAsync = onGetCarsNearbyAsync;
 		reservationRouter.onReservationClosed = onReservationClosed;
 	}
 	
 	// enable driving history
 	startImportingDrivingHistories();
 	
+	// start driving event import
+	var drivingBaseRouter = require('./routes/monitoring/drivingDataSync.js');
+	if(drivingBaseRouter.initSync){
+		drivingBaseRouter.initSync().then(function(){
+			console.log('Initial synchronization of monitoring console data completed.');
+		})['catch'](function(e){
+			console.log('Initial synchronization of monitoring console data failed: ', e);
+		}).done();
+	}
+	
+	// give virtualCars access to simulationImporter for pre-simulated trip_routes
+	var virtualCar = require('./devicesSimulationEngine/virtualCar.js');
+	virtualCar.simulationImporter = simulationImporter;
+	
 	// enable dummy car details info
 	dbClient.onGettingNewDeviceDetails = onGettingNewDeviceDetails;
-	
+
+	requestJobEveryDay(true);
 })();
+
+function requestJobEveryDay(skip){
+	if(!skip){
+		var yesterday = moment().subtract(1, "days").format("YYYY-MM-DD");
+		driverInsightsAnalyze.sendJobRequest(yesterday, yesterday);
+		debug("Request Analyzing for " + yesterday + " probes");
+	}
+	var timer = moment().endOf("day").valueOf() - Date.now() + 10000;
+	debug("Set job request after: " + timer + "ms");
+	setTimeout(requestJobEveryDay, timer);
+};

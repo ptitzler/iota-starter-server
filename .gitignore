@@ -1,3 +1,8 @@
-/node_modules/
-/_ghe_copy_repo.properties
+# Ignore mac chache file
 .DS_Store
+
+# Ignore npms
+/node_modules/
+
+# Ingore user-related properies file
+/_ghe_copy_repo.properties

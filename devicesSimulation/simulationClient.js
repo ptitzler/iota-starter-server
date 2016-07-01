@@ -129,7 +129,7 @@ simulationClient.prototype.createDevices = function(deviceType, numOfDevices, co
 	var nameIndex = _.indexBy(this.simulationConfig.devicesSchemas, "name");
 	var deviceSchema = nameIndex[deviceType];
 	if(!deviceSchema)
-		deferred.reject(new Error("no such device schema " + deviceType));
+		deferred.reject(new Error("no such device schema " + _.escape(deviceType)));
 
 	configs = (configs) ? configs : [];
 	var bulkRegRequest = [];

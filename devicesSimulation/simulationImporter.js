@@ -57,7 +57,7 @@ simulationImporter.prototype.loadFcdSimulation = function(fcdDataPath){
 
 	var location = _getLocation(fcdDataPath);
 	var parser = new xml2js.Parser();
-	var now = Date.now() - Math.round(Math.random()*86400000);
+	startTimeForEachTrip = {};
 	fs.readFile(fcdDataPath, function(err, data){
 		if(err) throw err;
 
@@ -66,16 +66,20 @@ simulationImporter.prototype.loadFcdSimulation = function(fcdDataPath){
 			var uuidMap = {};
 			var tripRoutes = {};
 			timesteps.forEach(function(timestep, timestepIndex){
-				var timestamp = (new Date(Number(timestep.$.time)*1000 + now)).getTime();
 				var vehicles = timestep.vehicle || [];
 				vehicles.forEach(function(vehicle, vehicleIndex){
 					var vehicleId = new Number(vehicle.$.id);
 
 					var mo_id = SIM_CAR_DEVICE_ID_PREFIX + location + "_" + vehicleId;
-					var trip_id = uuidMap[mo_id];
+					var trip_id = vehicle.$.trip_id || uuidMap[mo_id];
 					if(!trip_id){
 						trip_id = uuidMap[mo_id] = uuid.v1();
 					}
+					var startTime = startTimeForEachTrip[trip_id];
+					if(!startTime){
+						startTime = startTimeForEachTrip[trip_id] = Date.now() - Math.round(Math.random()*86400000);
+					}
+					var timestamp = (new Date(Number(timestep.$.time)*1000 + startTime)).getTime();
 
 					// Use pre map-matched value if available
 					var payload = {
@@ -199,22 +203,25 @@ var _requestSendProbeCallback = function(){
 var _requestSendProbe = function(deviceId, payload, callback){
 	requesting++;
 	debug("now requesting: " + requesting + ", num of queue: " + requestQueue.length);
-// Use driverInsightsProbe.mapMatch if you want to call map match API provided by IBM Watson IoT Context Mapping Service
-//	var mapMatch = driverInsightsProbe.mapMatch;
-	var mapMatch = function(deviceType, deviceId, payload){
-		var m = moment(payload.ts);
-		var prob = {
-				"timestamp": m.format(), // ISO8601
-				"matched_longitude": payload.lng,
-				"matched_latitude": payload.lat,
-				"matched_heading": payload.matched_heading,
-				"matched_link_id": payload.matched_link_id || payload.link_id,
-				"speed": payload.speed,
-				"mo_id": payload.id,
-				"trip_id": payload.trip_id
-			};
-		return Q(prob);
-	};
+	var mapMatch = null;
+	if(payload.matched_heading){
+		mapMatch = function(deviceType, deviceId, payload){
+			var m = moment(payload.ts);
+			var prob = {
+					"timestamp": m.format(), // ISO8601
+					"matched_longitude": payload.lng,
+					"matched_latitude": payload.lat,
+					"matched_heading": payload.matched_heading,
+					"matched_link_id": payload.matched_link_id || payload.link_id,
+					"speed": payload.speed,
+					"mo_id": payload.id,
+					"trip_id": payload.trip_id
+				};
+			return Q(prob);
+		};
+	}else{
+		mapMatch = driverInsightsProbe.mapMatch;
+	}
 	
 	mapMatch("Car_Sim", deviceId, payload).then(function(prob){
 		if(!prob.road_type && payload.road_type){

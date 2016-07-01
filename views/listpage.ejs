@@ -37,7 +37,7 @@ thead {
 	</table>
 	<div id="status">Loading...</div>
 	<script type="text/javascript">
-		// assume the fiest URL parameter's valie is REST API to be displayed as list
+		// assume the first URL parameter's valie is REST API to be displayed as list
 		var url = $(location).attr('search').split("=")[1];
 		
 		$(document).ready(function(){
@@ -49,17 +49,18 @@ thead {
 				function(response){
 					if(response.length > 0){
 						// columns
-						var columns = [];
+						var columns = {};
 						for(var i=0; i<response.length; i++){
 							var data = response[i];
 							if($.isPlainObject(data)){
 								for(var colName in data){
-									columns.push(colName);
+									if(colName !== "_rev"){
+										columns[colName]=true;
+									}	
 								}
-								break;
 							}
 						}
-						columns.sort();
+						columns = Object.keys(columns).sort();
 						
 						// display columns
 						columns.forEach(function(c) {
@@ -84,7 +85,11 @@ thead {
 										}
 										content = content + "</td>";
 									}else{
-										content = content + "<td nowrap>" + data + "</td>";
+										if (c === "deviceId" || c === "deviceID"){
+											content = content + "<td nowrap><a href='/admin/ui/device/form?deviceid=" + data + "'>" + data + "</a></td>"; 
+										} else {
+											content = content + "<td nowrap>" + (data || "") + "</td>";
+										}
 									}
 								});
 							}else{
