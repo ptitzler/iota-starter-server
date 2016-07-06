@@ -47,7 +47,6 @@ Author URI: http://www.ibm.com/internet-of-things/
 
 
 /* === 1. General + Commonly Used Styles === */
-
 * {
     -webkit-box-sizing: border-box;
     -moz-box-sizing: border-box;
@@ -203,6 +202,31 @@ i.iconBlock {
     width: 100%;
     margin: 15px 0;
     background: #fff;
+}
+
+.blur {
+    -webkit-animation: blur .5s forwards;
+    -moz-animation: blur .5s forwards;
+    -o-animation: blur .5s forwards;
+    animation: blur .5s forwards;
+}
+
+@-webkit-keyframes blur {
+    0% {
+        -webkit-filter: blur(0px);
+        -moz-filter: blur(0px);
+        -o-filter: blur(0px);
+        -ms-filter: blur(0px);
+        filter: blur(0px);
+    }
+
+    100% {
+        -webkit-filter: blur(4px);
+        -moz-filter: blur(4px);
+        -o-filter: blur(4px);
+        -ms-filter: blur(4px);
+        filter: blur(4px);
+    }
 }
 
 /* === 2. Header Styles === */
@@ -872,7 +896,7 @@ a.em-Modal-Call i {
 
 div.em-Modal {
     position: fixed;
-    background: rgba(62, 120, 188, 0.92);
+    background: rgba(62, 120, 188, 0.75);
     top: 0;
     left: 0;
     width: 100%;

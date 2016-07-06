@@ -133,6 +133,7 @@ router.put('/reservation/:reservationId', authenticate, function(req, res) {
 				console.error("Failed to update a reservation: car already pickedup");
 				return res.status(400).send("car already pickedup");
 			}
+			if(req.body.trip_id) reservation.trip_id = req.body.trip_id; 
 
 			var promise = Q(reservation);
 			if(req.body.status && req.body.status.toUpperCase() == "CLOSE"){
@@ -140,7 +141,7 @@ router.put('/reservation/:reservationId', authenticate, function(req, res) {
 				reservation.status = "closed";
 				reservation.actualDropoffTime = Math.floor(Date.now()/1000);
 				debug('Testing if call onReservationClosed or not');
-				if (router.onReservationClosed){
+				if (!reservation.trip_id && router.onReservationClosed){
 					debug(' -- calling onReservationClosed...');
 					promise = router.onReservationClosed(reservation);
 				}
@@ -148,7 +149,6 @@ router.put('/reservation/:reservationId', authenticate, function(req, res) {
 
 			reservation.pickupTime = validator.isNumeric(req.body.pickupTime) ? req.body.pickupTime : reservation.pickupTime;
 			reservation.dropOffTime = validator.isNumeric(req.body.dropOffTime) ? req.body.dropOffTime : reservation.dropOffTime;
-			if(req.body.trip_id) reservation.trip_id = req.body.trip_id; 
 
 			promise.then(function(reservation){
 				DB.insert(reservation ,null, function(err, result){

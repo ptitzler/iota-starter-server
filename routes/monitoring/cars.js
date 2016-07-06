@@ -84,19 +84,11 @@ var devicesDB = cloudantHelper.db; // promise
  *   http://localhost:6003/monitoring/cars/query?min_lat=-90&max_lat=90&min_lng=-180&max_lng=180
  */
 router.get('/cars/query', function(req, res){
-	var max_lat = parseFloat(req.query.max_lat),
-		max_lng = parseFloat(req.query.max_lng),
-		min_lat = parseFloat(req.query.min_lat),
-		min_lng = parseFloat(req.query.min_lng);
-	// normalize
-	var whole_lng = ((max_lng - min_lng) > 360);
-	min_lng = ((min_lng + 180) % 360) - 180;
-	max_lng = ((max_lng + 180) % 360) - 180;
+	var extent = normalizeExtent(req.query);
 	// test the query values
-	if ([max_lat, max_lng, min_lat, min_lng].some(function(v){ return isNaN(v); })){
+	if ([extent.max_lat, extent.max_lng, extent.min_lat, extent.min_lng].some(function(v){ return isNaN(v); })){
 		return res.status(400).send('One or more of the parameters are undefined or not a number'); // FIXME response code
 	}
-	var extent = {min_lng: min_lng, min_lat: min_lat, max_lng: max_lng, max_lat: max_lat, whole_lng: whole_lng};
 	
 	// countby query sring
 	var countby = req.query.countby;
@@ -163,7 +155,7 @@ var getLatestCarStatus = function(extent){
 					'lng:[' + extent.min_lng + ' TO ' + extent.max_lng + ']'); 
 		}else{
 			var qs = ('lat:[' + extent.min_lat + ' TO ' + extent.max_lat + '] AND ' +
-					'(lng:[' + extent.min_lng + ' TO 180] OR lng:[-180 TO ' + extent.max_lng + ']'); 
+					'(lng:[' + extent.min_lng + ' TO 180] OR lng:[-180 TO ' + extent.max_lng + '])'); 
 		}
 		return cloudantHelper.searchIndex(db, null, 'location', {q:qs})
 			.then(function(result){
@@ -235,8 +227,8 @@ var getCarDoc = function(deviceID, baseDoc, reservationStatus) {
 	} else if (reservationStatus){
 		status = 'available';
 	}
-	if(status)
-		result.status = status;
+	result.status = status;
+	
 	// location
 	if(device){
 		result.t = device.lastEventTime;
@@ -274,34 +266,53 @@ var initWebSocketServer = function(server, path){
 		if(!router.wsServer || !router.wsServer.clients)
 			return;
 		
-		event.updated = (event.updated || []).map(function(device){
-			var res_stat = null;// reservationStatusMap[deviceID];
-			return getCarDoc(device.deviceID, {}, res_stat);
-		})
-		event.deleted = (event.deleted || []).map(function(device){
-			var res_stat = null;// reservationStatusMap[deviceID];
-			return getCarDoc(device.deviceID, {}, res_stat);
-		})
+		// prepare car docs for each
+		var updated = (event.updated || []).map(function(device){
+			return getCarDoc(device.deviceID, {}, null);
+		});
+		var touched = (event.touched || []);
+		var deleted = (event.deleted || []).map(function(device){
+			return getCarDoc(device.deviceID, {}, null);
+		});
 		
-		var allDevices = _.flatten(_.values(_.pick(event, 'updated', 'touched', 'deleted')));
-		var ts = _.max(allDevices, function(d){ return d.lastEventTime; }) || Date.now();
+		//var allDevices = [].concat(updated).concat(touched).concat(deleted);
+		//var ts = _.max(allDevices, function(d){ return d.lastEventTime; }) || Date.now();
 		
-		var devices = (event.updated || []).concat((event.touched || []).map(function(d){
-			return {deviceID: d.deviceID, deviceType: d.deviceType, t: d.lastEventTime};
-		}));
-		var deleted = (event.deleted || []);
-		var msg = {
-				count: (devices.length + deleted.length),
-				devices: (devices.length ? devices : undefined),
-				deleted: (deleted.length ? deleted : undefined)
-		};
-		var msgs = JSON.stringify(msg);
 		router.wsServer.clients.forEach(function(client){
+			function filterByExtent(list){
+				if(!client.extent)
+					return list;
+				
+				var e = client.extent;
+				return list.filter(function(d){
+					if(!d.lat || !d.lng) return false; // not sure we can filter the device
+					//
+					if(d.lat < e.min_lat || e.max_lat < d.lat) return false; // out of range vertically
+					if(d.min_lng < d.max_lng){
+						if(d.lng < e.min_lng || e.max_lng < d.lng) return false;
+						return true;
+					}else{
+						if(e.max_lng < d.lng && d.lng < e.min_lng) return false;
+						return true;
+					}
+				});
+			}
+			var updatedForClient = filterByExtent(updated);
+			var count = updatedForClient.length;
+			if(count === 0)
+				return; // not send message
+			
+			// construct message
+			var msgs = JSON.stringify({
+				count: (updatedForClient.length),
+				devices: (updatedForClient),
+				deleted: undefined,
+			});
 			try {
 				client.send(msgs);
-				//console.log('Sent WSS message. ' + JSON.stringify(msg));
+				debug('  sent WSS message. ' + msgs);
 			} catch (e) {
-				console.error(e);
+				console.error('Failed to send wss message: ', e);
 			}
 		});
 	});
@@ -376,7 +387,7 @@ var initWebSocketServer = function(server, path){
 			try{
 				var j = decodeURI(url.substr(qsIndex + 8)); // 8 is length of "?region="
 				var extent = JSON.parse(j);
-				client.extent = extent;
+				client.extent = normalizeExtent(extent);
 			}catch(e){
 				console.error('Error on parsing extent in wss URL', e);
 			}
@@ -384,3 +395,31 @@ var initWebSocketServer = function(server, path){
 	});
 }
 
+
+function normalizeExtent(min_lat_or_extent, min_lng, max_lat, max_lng){
+	// convert one when the object is passed 
+	var min_lat;
+	if(min_lat_or_extent && min_lat_or_extent.min_lat){
+		var e = min_lat_or_extent;
+		min_lat = e.min_lat;
+		min_lng = e.min_lng;
+		max_lat = e.max_lat;
+		max_lng = e.max_lng;
+	}else{
+		min_lat = min_lat_or_extent;
+	}
+	
+	// to float
+	min_lat = parseFloat(min_lat);
+	min_lng = parseFloat(min_lng);
+	max_lat = parseFloat(max_lat);
+	max_lng = parseFloat(max_lng);
+	
+	// normalize
+	var whole_lng = ((max_lng - min_lng) > 360);
+	min_lng = whole_lng ? -180 : ((min_lng + 180) % 360) - 180;
+	max_lng = whole_lng ?  180 : ((max_lng + 180) % 360) - 180;
+	var extent = {min_lng: min_lng, min_lat: min_lat, max_lng: max_lng, max_lat: max_lat, whole_lng: whole_lng};
+	
+	return extent;
+}

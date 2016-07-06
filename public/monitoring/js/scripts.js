@@ -34,6 +34,9 @@ modalCallsArray.forEach(function(el) {
                 document.getElementById(el.rel).querySelector('.em-Modal-Close').classList.remove('em-Modal-Close-show');
                 document.getElementById(el.rel).classList.remove('em-Modal-show');
                 document.getElementById(el.rel).querySelector('.em-Modal-Content').classList.remove('em-Modal-Content-show');
+                
+                document.querySelector('header').classList.remove('blur');
+                document.querySelector('.content').classList.remove('blur');
             };
 
             document.onkeydown = function(event) {
@@ -48,6 +51,9 @@ modalCallsArray.forEach(function(el) {
             Array.prototype.slice.call(document.querySelectorAll('.em-Modal-Content ul.modalMenu a'), 0).forEach(function(modalLink) {
                 modalLink.addEventListener("click", close);
             });
+            
+            document.querySelector('header').classList.add('blur');
+            document.querySelector('.content').classList.add('blur');
         };
     }
 });

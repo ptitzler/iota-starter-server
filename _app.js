@@ -115,7 +115,9 @@ var onGetCarsNearbyAsync = function(lat, lng, devicesNearBy){
 		});
 	
 	// poll the device cache for maximum 15 seconds to make sure all the devies are created
-	onGetCarsNearbyPendingOp = createNewDevices.then(function(newDevices){
+	var op = onGetCarsNearbyPendingOp = createNewDevices.then(function(newDevices){
+		if(!newDevices || newDevices.length == 0)
+			return Q([]); // resolve soon as nothing
 		debug('  waiting for new simulation cars get connected...');
 		var waitForDevicesGettingActive = function(newDevices){
 			var start = Date.now();
@@ -158,7 +160,7 @@ var onGetCarsNearbyAsync = function(lat, lng, devicesNearBy){
 		onGetCarsNearbyPendingOp = null; // not necessary but just in case
 	});
 	
-	return onGetCarsNearbyPendingOp;
+	return op;
 };
 
 //a function to be injected to 'reservation.js' to add trip_id from simulated trips when reservation is completed
@@ -176,13 +178,15 @@ var onReservationClosed = function(reservation){
 					//get the duration
 					var start = Math.max(reservation.actualPickupTime*1000, trip.org_ts);
 					var end = Math.min(reservation.actualDropoffTime*1000 || Date.now(), trip.last_ts);
-					var dur = Math.max(0, end - start); // should be >=0
+					var dur = end - start; // should be > 0 for valid trips
 					debug('  overwrapped time duration is ' + dur + ' for the trip: ' + JSON.stringify(trip));
 					debug('    reservation.actualPickupTime=' + reservation.actualPickupTime*1000);
 					debug('    trip.org_ts=' + trip.org_ts);
 					debug('    trip.last_ts=' + trip.last_ts);
-					return isNaN(dur) ? -1 : dur;
+					return (isNaN(dur) || dur < -30*1000)  ? NaN : dur; // give 30 seconds extension for fall-back. NaN not to pick it
 				});
+				if(r == -Infinity)
+					return null; // not found
 				debug('A trip route [' + r.trip_id + '] is selected for the reservation just clonsed on device ' + deviceID);
 				return r;
 			})['catch'](function(err){
@@ -251,7 +255,6 @@ function createSimulationAround(lat, lng, numOfCars, radius){
 	radius = (radius)? radius : 500;
 	
 	// prepare deferred functions for creating simulation
-	var functions = [devicesCache.reserveDevices("ConnectedCarDevice", numOfCars)];
 	function randCarAttributes(nRetry){
 		var rndLocation = getRandomLocation(lat,lng, radius);
 		return contextMapping.matchMapFirst(rndLocation.lat, rndLocation.lng).then(function(match){
@@ -266,26 +269,29 @@ function createSimulationAround(lat, lng, numOfCars, radius){
 			return {lat: rndLocation.lat, lng: rndLocation.lng};
 		});
 	}
-	for(var i = 0; i < numOfCars; i++){
-		functions.push(randCarAttributes(1));
-	}
 	
+	var functions = _(numOfCars).times(function(){ return randCarAttributes(1); });
 	return Q.all(functions)
-		.then(function(results){
-			var devices = results[0];
-			results.shift();
-			var respDevices = devices.map(function(device, index){
-				if(!results[index]) return null;
-				var respDevice = {deviceID: device.deviceID};
-				Object.keys(results[index]).forEach(function(key){
-					var value = results[index][key];
-					simulationClient.setAttributeValue(device.deviceID, key, value.toString());
-					respDevice[key] = value;
+		.then(function(carAttrs){
+			carAttrs = carAttrs.filter(function(carAttr){ return !!carAttr; });
+			if(carAttrs.length == 0){
+				debug('  cannot create car at the location. seems there is no road around.');
+				return Q([]);
+			}
+			return devicesCache.reserveDevices("ConnectedCarDevice", carAttrs.length)
+				.then(function(devices){
+					var respDevices = devices.map(function(device, index){
+						var respDevice = {deviceID: device.deviceID};
+						Object.keys(carAttrs[index]).forEach(function(key){
+							var value = carAttrs[index][key];
+							simulationClient.setAttributeValue(device.deviceID, key, value.toString());
+							respDevice[key] = value;
+						});
+						simulationClient.connectDevice(device.deviceID);
+						return respDevice;
+					}).filter(function(device){ return !!device; });
+					return respDevices;
 				});
-				simulationClient.connectDevice(device.deviceID);
-				return respDevice;
-			}).filter(function(device){ return !!device; });
-			return respDevices;
 		});
 };
 
@@ -396,13 +402,84 @@ devicesCache.loadDevices = function(filepath){
 		else
 			deferred.reject();
 	});
+	
+	// schedule unreferenced IoT Platform devices cleanup process
+	setTimeout((function(){
+		deferred.promise.then(this._cleanupIoTPlatformDevices()).done();
+	}).bind(this), 10000);
+	
 	return deferred.promise;
-}
+};
+
+/*
+ * This _app.js manages simulation car devices using "registeredDevices" document in
+ * Cloudant DB. But it sometimes gets unsynced with devices registered to IoT Platform
+ * and some in IoT Platform get unreferenced. This is to remove such unreferenced devices
+ * from IoT Platform so that we can effectively use IoT Platform within its device 
+ * number limit.
+ */
+devicesCache._cleanupIoTPlatformDevices = function(){
+	debug('Start cleaning unreferenced car devices up...')
+	var regDevices = (this.registeredDevicesDoc && this.registeredDevicesDoc.devices) || [];
+	var regDeviceIdMap = _.indexBy(regDevices, 'deviceID');
+	return devices.getAllDevices()
+	.then((function(allDevices){
+		var removeOps = allDevices.filter(function(device){
+			if(device.typeId !== 'ConnectedCarDevice') return false;
+			var registeredDoc = regDeviceIdMap[device.deviceId];
+			if(registeredDoc) return false; // skip as the device is in the doc.
+			debug('    found unreferenced car device [%s].', JSON.stringify(device));
+			return true;
+		}).map(function(device){
+			device.deviceID = device.deviceId = device.deviceID || device.deviceId; // normalize
+			device.typeID = device.typeId = device.typeID || device.typeId; // normalize
+			return devices.removeCredentials(device); // delete device from IoT Platform
+		});
+		debug('  removing %d unreferenced car device in IoT Platform...', removeOps.length);
+		return Q.allSettled(removeOps);
+	}).bind(this))
+	.then(function(){
+		debug('  done cleaning up unreferenced car devices.');
+	})['catch'](function(er){
+		debug('  failed to clean up unreferenced car devices with exception: ', er);
+	});
+};
 
 /**
- * Save the `this.registeredDevicesDoc` to store the current list of devices
+ * Save the `this.registeredDevicesDoc` to store the current list of devices.
+ * - retry 5 times not to leak IoT Platform devices
  */
-devicesCache.saveDevices = function(){
+devicesCache.saveDevices = function(nRetry){
+	if(!nRetry){
+		debug('UPDATE registeredDevices document is scheduled.');
+	}
+	nRetry = nRetry || 3; // give the default
+	
+	// stop scheduled one first
+	if(this._saveDevicesRetryTimeout){
+		clearTimeout(this._saveDevicesRetryTimeout);
+		this._saveDevicesRetryTimeout = null;
+	}
+	
+	return Q(this._saveDevices())
+	.then(function(){
+		debug('  The registeredDevices document updated successfully.');
+	})['catch'](function(er){
+		if(nRetry > 0){
+			// schedule retry
+			console.error('Caught error on saving the registeredDevices document. Retry after 2 munites.', er);
+			this._saveDevicesRetryTimeout = setTimeout((function(){
+				this.saveDevices(nRetry - 1);
+			}).bind(this), 120*1000); // schedule after 120 seconds
+		} else {
+			console.error('ERROR: Caught error on saving the registeredDevices document. UNRECOVERABLE as retry count exceeded.', er);
+			return Q.reject(er);
+		}
+	}).done();
+};
+devicesCache._saveDevicesRetryTimeout = null;
+
+devicesCache._saveDevices = function(){
 	var deferred = Q.defer();
 
 	var getDB = function() {
