@@ -42,24 +42,43 @@ var devices = {
 		return {deviceTypeSchema: deviceTypeSchema};
 	}(),
 
+	// get all devices registered in IoT Platform
+	_getAllIoTDevices: function(iotfDevices, bookmark, deferred) {
+		if (!iotfDevices)
+			iotfDevices = [];
+		if (!deferred)
+			deferred = Q.defer();
+		var params = {};
+		if (bookmark) params._bookmark = bookmark;
+		
+		IOTF.iotfAppClient.callApi('GET', 200, true, ['bulk', 'devices'], null, params).then(function(response) {
+			var resultDevices = response.results || [];
+			iotfDevices = iotfDevices.concat(resultDevices.map(function(d) {
+				return {deviceId: d.deviceId, typeId: d.typeId, registrationDate: new Date(d.registration.date).getTime(), deviceInfo: d.deviceInfo, metadata: d.metadata};
+			}));
+			if (response.bookmark) {
+				devices._getAllIoTDevices(iotfDevices, response.bookmark, deferred);
+			} else {
+				deferred.resolve(iotfDevices);
+			}
+		}, function(err) {
+			deferred.reject(err);
+		});
+		return deferred.promise;
+	},
+	
 	/**
 	 * Get all devices
 	 */
 	getAllDevices: function() {
-		var iotfAppClient = IOTF.iotfAppClient;
-
 		var iotfDevices = [];
 		var deviceDetailsList = [];
 		var connectedDeviceList = [];
 		
 		// get all devices registered in IoT Platform
 		function getIotfDevices() {
-			return iotfAppClient.callApi('GET', 200, true, ['bulk', 'devices']).then(function(response) {
-				var resultDevices = response.results || [];
-				iotfDevices = resultDevices.map(function(d) {
-					return {deviceId: d.deviceId, typeId: d.typeId, registrationDate: new Date(d.registration.date).getTime(), deviceInfo: d.deviceInfo, metadata: d.metadata};
-				});
-				return iotfDevices;
+			return devices._getAllIoTDevices().then(function(results) {
+				iotfDevices = results;
 			});
 		};
 
@@ -141,7 +160,7 @@ var devices = {
 		var deviceId = (device && device.deviceID) || null;
 		var deviceTypeId = dataTypeSchema.id;
 		
-		console.log("getting device details...: " + deviceId ? deviceId : "all");
+		console.log("getting device details...: " + (deviceId ? deviceId : "all"));
 		return dbClient.getExistingDeviceDetails(device).then(function onSuccess (deviceDetails) {
 			console.log("device details are retrieved successfully");
 			return deviceDetails;
@@ -351,10 +370,10 @@ var devices = {
 		Q.when(device_credentials, function(db){
 
 			var registerDevice = function() {
-				return iotfAppClient.callApi('GET', 200, true, ['bulk', 'devices']).then(function onSuccess (response) {
+				return devices._getAllIoTDevices().then(function(iotDevices) {
 					
 					// Check all device types and return an error if deviceId already exists. 
-					if (response.results && response.results.some(function(d) {return d.deviceId === deviceId;})) {
+					if (iotDevices && iotDevices.some(function(d) {return d.deviceId === deviceId;})) {
 						var error = {status: 409, message: "$s is already registered.".replace("$s", _.escape(deviceId))};
 						return Q.reject(error);
 					}

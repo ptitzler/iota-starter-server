@@ -130,6 +130,10 @@ app.use(function (req, res, next) {
 		next();
 	}
 });
+
+//static serve 'public' folder
+app.use(express.static(path.join(__dirname, 'public'), {extensions: ['html', 'htm']}));
+
 //test referer
 app.use(function(req, res, next){
 	var referrer = req.headers['referer'];
@@ -146,6 +150,11 @@ app.use(function(req, res, next){
 			return next(); // accept
 	}
 	
+	// allow link to the top page
+	if(req.method === 'GET' && req.path){
+		if(req.path === '/') return next();
+	}
+	
 	//reject
 	console.error('Rejected request as the referrer [%s] does not match to any server URLs.');
 	res.status(403).send('Unauthorized');
@@ -156,9 +165,6 @@ app.use(function(req, res, next){
 	res.setHeader("iota-starter-car-sharing-version", appVersion);
 	next();
 });
-
-//static serve 'public' folder
-app.use(express.static(path.join(__dirname, 'public'), {extensions: ['html', 'htm']}));
 
 //add routes
 app.use('/',           require('./routes/indexRouter.js'));

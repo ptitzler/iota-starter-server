@@ -22,8 +22,8 @@ var basicAuth = require('basic-auth');
 var qr = require('qr-image');
 var appEnv = require("cfenv").getAppEnv();
 
-var ADMIN_USER     = "ADMIN";
-var ADMIN_PASSWORD = "ADMIN";
+var ADMIN_USER     = process.env.ADMIN_USER || "ADMIN";
+var ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "ADMIN";
 
 //basic authentication
 var authenticate = function(req,res,next){

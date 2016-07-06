@@ -5,4 +5,4 @@ cf create-service cloudantNoSQLDB Shared MobilityDB
 cf create-service mapinsights free ContextMapping
 cf create-service driverinsights free DriverBehavior
 cf create-service weatherinsights Free-v2 WeatherInsights
-cf create-service imfpush Basic PushNotifications
+#cf create-service imfpush Basic PushNotifications

@@ -32,6 +32,7 @@
 	var DEFAULT_ZOOM = 15;
 	
 	// internal settings
+	var INV_MAX_FPS = 1000 / 10;
 	var ANIMATION_DELAY = 2000;
 	var DEFAULT_MOVE_REFRESH_DELAY = 500;
 	var CAR_STATUS_REFRESH_PERIOD = 0 // was 15000; now, setting 0 not to update via polling (but by WebSock)
@@ -52,9 +53,10 @@
 			$scope.DEBUG = false;
 			$scope.debugData = "[none]";
 			$scope.debugOut = function(){
-				var extent = map.map.getView().calculateExtent(map.map.getSize());
+				var extent = map.getView().calculateExtent(map.getSize());
 				extent = ol.proj.transformExtent(extent, 'EPSG:3857', 'EPSG:4326');
-				$scope.debugData = JSON.stringify(extent);
+				var center = ol.proj.toLonLat(map.getView().getCenter());
+				$scope.debugData = "" + JSON.stringify(extent) + ", Center:" + JSON.stringify(center);
 			};
 			
 			// important model variables
@@ -234,7 +236,7 @@
 					devices.forEach(function(device){
 						var cur = device.getAt(frameTime); // get state of the device at frameTime
 						var curPoint = (cur.lng && cur.lat) ? new ol.geom.Point(ol.proj.fromLonLat([cur.lng, cur.lat])) : null;
-						var curStatus = cur.status;
+						var curStatus = cur.status || null;
 						
 						var feature = device.feature;
 						if(curPoint && !feature){
@@ -242,15 +244,16 @@
 							feature = new ol.Feature({ 
 								geometry: curPoint,
 								carStatus: curStatus,
-								style: getCarStyle(curStatus),  //WORKAROUND: not sure why layer style not work
+								//style: getCarStyle(curStatus),  //WORKAROUND: not sure why layer style not work
 								device: device,
 							});
-							feature.setStyle(getCarStyle(curStatus));
+							if(curStatus)
+								feature.setStyle(getCarStyle(curStatus));
 							carsLayer.getSource().addFeature(feature);
 							device.feature = feature;
 						}else if(curPoint && feature){
 							// update
-							if(curStatus !== feature.get(('carStatus'))){
+							if(curStatus && curStatus !== feature.get('carStatus')){
 								feature.set('carStatus', curStatus, surpussEvent);
 								feature.setStyle(getCarStyle(curStatus)); //WORKAROUND: not sure why layer style not work
 							}
@@ -269,7 +272,7 @@
 					syncCarFeatures(animatedDeviceManager.getDevices(), frameTime);
 				});
 				mapHelper.postComposeHandlers.push(function(event, frameTime){
-					return 100; // give 100ms for next frame if not other events captured
+					return INV_MAX_FPS; // give delay for next frame if not other events captured
 				});
 			};
 			
@@ -615,6 +618,7 @@
 	 */
 	MapHelper.prototype.stopAnimation = function stopAnimation(){
 		this.animating = false;
+		this.nextRenderFrameTime = 0;
 		this.map.un('precompose', this._onPreComposeFunc);
 		this.map.un('postcompose', this._onPostComposeFunc);
 	};
@@ -639,10 +643,14 @@
 			//var vectorContext = event.vectorContext;
 			var frameState = event.frameState;
 			var frameTime = this.getServerTime(frameState.time) - this.animationDelay;
-			this.preComposeHandlers.forEach(function(handler){ handler(event, frameTime); });
+			if(this.nextRenderFrameTime < frameTime){
+				this.preComposeHandlers.forEach(function(handler){ handler(event, frameTime); });
+				this.nextRenderFrameTime = 0; // unschedule next
+				//console.log('Updated fatures.');
+			}
 		}
 	};
-	// handle precompose event and delegate it to handlers, schedule next render
+	// handle postcompose event and delegate it to handlers, schedule next render
 	MapHelper.prototype._onPostCompose = function _onPostCompose(event){
 		if (this.animating){
 			//var vectorContext = event.vectorContext;
@@ -652,18 +660,21 @@
 			this.postComposeHandlers.forEach(function(handler){ 
 				var nextRenderDuration = handler(event, frameTime);
 				nextRenderDuration = parseInt(nextRenderDuration);
-				if(nextRenderDuration >= 0 && nextRenderDuration < nextRender)
+				if(nextRenderDuration >= 0 && nextRender < nextRenderDuration)
 					nextRender = nextRenderDuration;
 			});
-			//for postcompose animation
-			if(nextRender <= 10){
-				if(this.animating)
-					this.map.render();
-			}else{
-				setTimeout((function(){
+			// set next render time when not scheduled
+			if(!this.nextRenderFrameTime){
+				this.nextRenderFrameTime = frameTime + (nextRender > 0 ? nextRender : 0);
+				if(nextRender <= 10){
 					if(this.animating)
 						this.map.render();
-				}).bind(this), nextRender);
+				}else{
+					setTimeout((function(){
+						if(this.animating)
+							this.map.render();
+					}).bind(this), nextRender);
+				}
 			}
 		}
 	};

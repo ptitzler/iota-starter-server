@@ -205,6 +205,12 @@ To show your device on a map on the mobile app, you need to register your device
 
 6. Go back to the list page and confirm that your car name and photo is shown in the list.
 
+Credentials for vehicle management page are set to ADMIN/ADMIN by default. However, they can be changed with environment variables.
+```
+ADMIN_USER=<administrator name>
+ADMIN_PASSWORD=<administrator password>
+```
+
 Your sensor device needs to publish car probe data like location and speed to the Internet of Things Platform in order to create your own trip data. If your device is registered with the above form successfully, the device is added to the Internet of Things Platform with the device type  __UserOwnedCarDevice__.
 
 You can also add your device to the Internet of Things Platform by yourself. See the following IBM Watson IoT Platform pages.
@@ -289,11 +295,11 @@ The following diagram shows the components involved in the application and flows
 * **Car Control** gets a request for controlling a car device e.g. unlock and lock a car. It sends a command to the target car through IoT Platform. [routes/user/reservation.js](routes/user/reservation.js) contains implementation for /carControl end point.
 * **Driver Profile** handles a request to access driver's behaviors using Driver Behavior service. [routes/user/insights.js](routes/user/insights.js) defines the end point and [driverInsights/analyze.js](driverInsights/analyze.js) has the implementation.
 * **Driving Analysis** gets events containing probe data from registered cars through IoT Platform and sends the probe data to Context Mapping service to get the corrected location, then sends the corrected location to Driver Behavior service to get the driver's behaviors. [driverInsights/probe.js](driverInsights/probe.js) is the entry point to explore the implementation. It also stores the probe data to Cloudant database "trip_route" that is used to retrieve a trip route (see [driverInsights/tripRoutes.js](driverInsights/tripRoutes.js)).
+* **Monitoring System** provides a dashboard showing real-time information about cars and reservations, and information about driver's behaviors extracted from probe data by Driver Behavior service. The Map page pulls car status and reservation information via HTTP requests, and also receives car probe events relayed by IoT Platform via Web Socket connection. The page aggregates those informations to visualize the real-time state of cars on a map. The Users page shows statistics of driving behaviors associated to users' reservations. The server side implementation periodically, every two hours by default, extracts driving behavior information from the __Reservation__ and the __Driver Profile__ components and caches them to a database. The page gets the statistics from the database via HTTP requests. The implementation includes static files in [public/monitoring](public/monitoring) folder and server-side implementations in [routes/monitoring](routes/monitoring) folder which provides the end points and data synchronization.
 
 * **Simulated Driving Data** is preset driving data under [devicesSimulation/data](devicesSimulation/data) folder. The data is passed to Driving Analysis directly in [devicesSimulation/simulationImporter.js](devicesSimulation/simulationImporter.js) that is called in [_app.js](_app.js).
 * **Cars (Simulator)** simulates car behaviors. The implementation is under [devicesSimulationEngine](devicesSimulationEngine) folder.
 
-* **Monitoring System** provides a dashboard showing real-time information about cars and reservations, and information about driver's behaviors extracted from probe data by Driver Behavior service. The Map page pulls car status and reservation information via HTTP requests, and also receives car probe events relayed by IoT Platform via Web Socket connection. The page aggregates those informations to visualize the real-time state of cars on a map. The Users page shows statistics of driving behaviors associated to users' reservations. The server side implementation periodically, every two hours by default, extracts driving behavior information from the __Reservation__ and the __Driver Profile__ components and caches them to a database. The page gets the statistics from the database via HTTP requests. The implementation includes static files in [public/monitoring](public/monitoring) folder and server-side implementations in [router/monitoring](router/monitoring) folder which provides the end points and data synchronization.
 
 ## Report Bugs
 If you find a bug, please report it using the [Issues section](https://github.com/ibm-watson-iot/iota-starter-server/issues).

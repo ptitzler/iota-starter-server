@@ -82,40 +82,57 @@ _.extend(driverInsightsAnalyze, {
 				console.log("Don't send a job: last_job_ts=" + this.last_job_ts + ", last_prob_ts=" + driverInsightsProbe.last_prob_ts);
 				return;
 			}
-			var config = this.driverInsightsConfig;
-			var api = "/jobcontrol/job";
-			var body = JSON.stringify({
-				from: from || moment(this.last_job_ts).format("YYYY-MM-DD"),
-				to: to || moment().format("YYYY-MM-DD")
-			});
-			var options = {
-				method: 'POST',
-				url: config.baseURL+api+'?tenant_id='+config.tenant_id,
-				headers: {
-					'Content-Type':'application/json; charset=UTF-8',
-					"Content-Length": Buffer.byteLength(body)
-				},
-				body: body
-			};
-			_.extend(options, this.authOptions);
-			console.log("Call SendJobRequest: " + JSON.stringify(options));
-			var self = this;
-			request(options, function(error, response, body){
-				if (!error && response.statusCode === 200) {
-					console.log('SendJobRequest successfully done: '+ body);
-					var body = JSON.parse(body);
-					if(body.job_id){
-						self.watchingJobs.push(body.job_id);
-						self._setWatchingTask();
-					}
-					self.last_job_ts = moment().valueOf();
-				} else {
-					console.error('SendJobRequest error: '+ body + 
-							'\n response: ' + JSON.stringify(response) + 
-							'\n error: ' + JSON.stringify(error));
-				}
-			});
+
+			from = from || moment(this.last_job_ts).format("YYYY-MM-DD");
+			to = to || moment().format("YYYY-MM-DD");
+			if(from === to){
+				this._sendJobRequest(from, to);
+			}else{
+				var one_day_before_to = moment(to).subtract(1, "days").format("YYYY-MM-DD");
+				this._sendJobRequest(from, one_day_before_to);
+				this._sendJobRequest(to, to);
+			}
 		}).bind(this));
+	},
+	_sendJobRequest: function(from, to){
+		if(!from || !to){
+			console.log("Specify 'from' and 'to' or use sendJobRequest function instead of _sendJobRequest");
+			return;
+		}
+
+		var config = this.driverInsightsConfig;
+		var api = "/jobcontrol/job";
+		var body = JSON.stringify({
+			from: from,
+			to: to
+		});
+		var options = {
+			method: 'POST',
+			url: config.baseURL+api+'?tenant_id='+config.tenant_id,
+			headers: {
+				'Content-Type':'application/json; charset=UTF-8',
+				"Content-Length": Buffer.byteLength(body)
+			},
+			body: body
+		};
+		_.extend(options, this.authOptions);
+		console.log("Call SendJobRequest: " + JSON.stringify(options));
+		var self = this;
+		request(options, function(error, response, body){
+			if (!error && response.statusCode === 200) {
+				console.log('SendJobRequest successfully done: '+ body);
+				var body = JSON.parse(body);
+				if(body.job_id){
+					self.watchingJobs.push(body.job_id);
+					self._setWatchingTask();
+				}
+				self.last_job_ts = moment().valueOf();
+			} else {
+				console.error('SendJobRequest error: '+ body + 
+						'\n response: ' + JSON.stringify(response) + 
+						'\n error: ' + JSON.stringify(error));
+			}
+		});
 	},
 	
 	/**
