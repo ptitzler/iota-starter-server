@@ -37,10 +37,10 @@
 			};
 			// loading data
 			var loadingData = {
-					all: '--',
-					in_use: '--',
-					available: '--',
-					unavailable: '--',
+					all: '-',
+					in_use: '-',
+					available: '-',
+					unavailable: '-',
 			};
 			
 			// initialize model
@@ -128,9 +128,12 @@
 				
 				// set loading data and start updating
 				this.start = function(){
-					$scope.counts = loadingData;
+					regions.forEach(function(region){
+						$scope.counts[region.id] = loadingData;
+					});
+					//$scope.counts._selection = loadingData;
 					update();
-				}
+				};
 			};
 		},
 	});

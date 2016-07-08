@@ -599,6 +599,9 @@
 		this._postChangeViewTimer = null;
 		this.map.getView().on('change:center', this._onMapViewChange.bind(this));
 		this.map.getView().on('change:resolution', this._onMapViewChange.bind(this));
+		
+		// setup map resize handler
+		this.installMapSizeWorkaround();
 	}
 	/**
 	 * Start animation
@@ -913,6 +916,44 @@
 			stopUpdateTimer = function(){}; // nop
 		}
 		
+	};
+	
+	/**
+	 * Install workaorund for map size issue.
+	 * Sometimes, OpenLayer's map canvas size and the underlying DIV element's size
+	 * wont be synced. It causes inconsistency in conversion from screen pixcel to
+	 * map coordinates and it hits mouse cursor-involved features such as popover.
+	 * 
+	 * So, this function does the followings:
+	 * - force update map size after resizing browser, and
+	 * - force update map size after tow seconds this function is called.
+	 *   - this is required on initial loading in Firefox as its div resizing timing
+	 *     seems different from others
+	 * 
+	 * Ideally, we should directly track the size of the DIV, but not here yet
+	 */
+	MapHelper.prototype.installMapSizeWorkaround = function(){
+		// - capture resize event
+		if(!this._scheduleUpdateSize){
+			var this_ = this;
+			var scheduleUpdateSizeTimer = 0; // always refers to this scope form the function
+			this._scheduleUpdateSize = function(timeout) {
+				return function(){
+					if(scheduleUpdateSizeTimer){
+						clearTimeout(scheduleUpdateSizeTimer);
+					}
+					scheduleUpdateSizeTimer = setTimeout(function(){ 
+						this_.map.updateSize();
+						scheduleUpdateSizeTimer = 0;
+					}, timeout);
+				};
+			};
+			if(window.addEventListener){
+				window.addEventListener('resize', this._scheduleUpdateSize(200));
+				window.addEventListener('orientationchange', this._scheduleUpdateSize(1000));
+			}
+		}
+		this._scheduleUpdateSize(1000)(); // WORKAROUND: map's canvas and div sizees don't sync in Firefox
 	};
 	
 	/***************************************************************

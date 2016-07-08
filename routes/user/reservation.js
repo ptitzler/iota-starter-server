@@ -111,6 +111,10 @@ router.post('/reservation', authenticate, function(req, res) {
 		if(req.body.deviceId){
 			reservation.deviceId = validator.escapeId(req.body.deviceId);
 		}
+		var device = connectedDevices.getConnectedDevice(reservation.carId);
+		if(device) {
+			device.status = "Locked";
+		}
 		DB.insert(reservation ,null, function(err, doc){
 			if(err){
 				console.error(err);
