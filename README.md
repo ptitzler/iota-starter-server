@@ -139,7 +139,7 @@ The app provides a simple custom authentication service. If you want to use the 
 
 8. Enter the following authentication credentials.  
 __Realm name__ : `custauth`  
-__URL__ : `https://<host>.mybluemix.net`
+__Custom Identity Provider Url__ : `https://<host>.mybluemix.net`
 
 9. Click Save button.
 
@@ -147,13 +147,13 @@ __URL__ : `https://<host>.mybluemix.net`
 
 11. Click the _Environment Variables_ in the left bar.
 
-12. Open USER_DEFINED.
+12. Open USER-DEFINED.
 
 13. Add the following variable and save it.  
 __Name__ : `MCA_AUTHENTICATION`  
 __Value__ : `true`
 
-Once you enable the authentication, you can log in to the app with username `tom` and password `tom`.  
+Once you enable the authentication, you can log in to the app with any username and any password.  
 
 See [Configuring Mobile Client Access for custom authentication](https://console.ng.bluemix.net/docs/services/mobileaccess/custom-auth-config-mca.html) for more information.
 
@@ -180,7 +180,7 @@ Simulated cars and your device can coexist. However, you can disable simulated c
 
 3. Click the _Environment Variables_ in the left bar.
 
-4. Open USER_DEFINED.
+4. Open USER-DEFINED.
 
 5. Add the following variable and save it.
 ```

@@ -98,7 +98,7 @@ _.extend(tripRoutes, {
 					var appendingRoutes = tripRoute.routes;
 					// The rows must be returned in the same order as the supplied "keys" array.
 					var doc = (!existingRoutes[index] || existingRoutes[index].key !== trip_id || existingRoutes[index].error === "not_found")
-								? {_id: trip_id, routes: []}
+								? {_id: trip_id, routes: [], job_status: driverInsightsAnalyze.TRIP_ANALYSIS_STATUS.NOT_STARTED}
 								: existingRoutes[index].doc;
 					doc.routes = doc.routes.concat(appendingRoutes).sort(function(a, b){
 						return a.ts - b.ts;
@@ -121,7 +121,7 @@ _.extend(tripRoutes, {
 		});
 	},
 	
-	getTripRouteById: function(trip_id){
+	getTripRouteRaw: function(trip_id){
 		var deferred = Q.defer();
 		var self = this;
 		Q.when(self.db, function(db){
@@ -131,7 +131,33 @@ _.extend(tripRoutes, {
 					deferred.reject(err);
 					return;
 				}
-				var coordinates = body.routes.map(function(payload){
+				deferred.resolve(body)
+			});
+		})["catch"](function(error){
+			console.error(error);
+			deferred.reject(error);
+		});
+		return deferred.promise;
+	},
+	getTripRouteById: function(trip_id, options){
+		var count = options.count || -1;
+		var matchedOnly = options.matchedOnly === "true";
+		var deferred = Q.defer();
+		var self = this;
+		Q.when(self.db, function(db){
+			db.get(trip_id, function(err, body){
+				if(err){
+					console.error(err);
+					deferred.reject(err);
+					return;
+				}
+				var coordinates = count > 0 && count < body.routes.length ? body.routes.slice(-count) : body.routes;
+				if(matchedOnly){
+					coordinates = coordinates.filter(function(payload){
+						return !payload.map_matched;
+					});
+				};
+				coordinates = coordinates.map(function(payload){
 					var lng = payload.matched_longitude || payload.lng || payload.longitude;
 					var lat = payload.matched_latitude || payload.lat || payload.latitude;
 					return [lng, lat];
@@ -164,6 +190,57 @@ _.extend(tripRoutes, {
 		return deferred.promise;
 	},
 
+	/**
+	 * Set job_id when a job expected to contain the trip is requested
+	 */
+	setJobId: function(job_id, from, to){
+		var _from = moment(from).startOf("day").valueOf();
+		var _to = moment(to).endOf("day").valueOf();
+		var self = this;
+		this._searchTripsIndex({q: 'job_id:"-" AND NOT org_ts:[' + _to + ' TO Infinity] AND NOT last_ts:[0 TO ' + _from + ']', include_docs: true})
+			.then(function(result){
+				var docs = result.rows.map(function(row){
+					var doc = row.doc;
+					doc = _.extend(doc, {job_id: job_id});
+					return doc;
+				});
+				Q.when(self.db, function(db){
+					db.bulk({docs: docs}, "insert", function(err, body){
+						if(err){
+							console.error("set job_id failed");
+						}else{
+							debug("set job_id succeeded");
+						}
+					});
+				});
+			});
+	},
+	/**
+	 * Set job status of all trips which should be analyzed by a job (job_id)
+	 */
+	setJobStatus: function(job_id, status){
+		var self = this;
+		this._searchTripsIndex({q: "job_id:" + job_id, include_docs: true})
+			.then(function(result){
+				var docs = result.rows.map(function(row){
+					var doc = row.doc;
+					doc = _.extend(doc, {job_status: status});
+					return doc;
+				});
+				Q.when(self.db, function(db){
+					db.bulk({docs: docs}, "insert", function(err, body){
+						if(err){
+							console.error("set job_status failed");
+						}else{
+							debug("set job_status succeeded");
+						}
+					});
+				})["catch"](function(error){
+					console.error(error);
+				});
+			});
+	},
+
 	getTripsByDevice: function(deviceID, limit){
 		return this._searchTripsIndex({q:'deviceID:'+deviceID, sort: '-org_ts', limit:(limit||5)})
 			.then(function(result){
@@ -194,6 +271,7 @@ _.extend(tripRoutes, {
 					index('org_lng', parseFloat(route0.lng), {store:true});
 					index('org_ts', parseFloat(route0.ts), {store:true}); // timestamp in millis
 					index('last_ts', parseFloat(doc.routes[doc.routes.length-1].ts), {store:true});
+					index('job_id', doc.job_id||"-", {store: true});
 				}
 			}
 		};

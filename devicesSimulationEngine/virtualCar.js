@@ -70,7 +70,7 @@ virtualCar.prototype.onRunningCode = function(){
 			loc = this.tripRoute[this.tripRouteIndex];
 			speed = getDistance(loc, this)*0.001*3600;
 		}
-		while(speed>160 || (speed - this.speed) > 20){
+		while(speed>120 || (speed - this.speed) > 20){
 			// too harsh acceleration, then insert intermediate point
 			var loc2 = {lat: (+loc.lat+this.lat)/2, lon: (+loc.lon+this.lng)/2};
 			speed = getDistance(loc2, this)*0.001*3600;
@@ -170,10 +170,10 @@ virtualCar.prototype._calculateTripRoute = function(maxRetryCount){
 		
 		// create a direct route instead
 		console.error('Failed to find route. Creating a direct route... The cause is: ', result);
-		var routeArray = [{lat: +_this.lat, lon: +_this.lng},
-		                  {lat: +_this.lat, lon: +_this.lng},
-		                  {lat: dlat, lon: dlng},
-		                  {lat: dlat, lon: dlng}];
+		var routeArray = [{lat: +_this.lat, lon: +_this.lng, link_id: -1 },
+		                  {lat: +_this.lat, lon: +_this.lng, link_id: -1 },
+		                  {lat: dlat, lon: dlng, link_id: -1 },
+		                  {lat: dlat, lon: dlng, link_id: -1 }];
 		_this.tripRoute = routeArray;
 		_this.tripRouteIndex = 0;
 	}).done();

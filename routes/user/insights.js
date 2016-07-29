@@ -94,9 +94,16 @@ router.get("/driverInsights/triproutes/:trip_uuid", function(req, res){
 		res.send(error);
 	})
 });
+router.get("/driverInsights/tripanalysisstatus/:trip_id", function(req, res){
+	driverInsightsAnalyze.getTripAnalysisStatus(req.params.trip_id).then(function(msg){
+		res.send(msg);
+	})["catch"](function(error){
+		res.send(error);
+	});
+});
 
 router.get("/triproutes/:trip_id", function(req, res){
-	driverInsightsTripRoutes.getTripRouteById(req.params.trip_id).then(function(msg){
+	driverInsightsTripRoutes.getTripRouteById(req.params.trip_id, req.query).then(function(msg){
 		res.send(msg);
 	})["catch"](function(error){
 		res.send(error);
