@@ -48,9 +48,25 @@ IOTF.on("+", function(payload, deviceType, deviceId){
 	// assign ts if missing
 	payload.ts = moment(payload.ts || Date.now()).valueOf();
 	
-	driverInsightsProbe.mapMatch(deviceType, deviceId, payload).then(function(prob){
+	(driverInsightsProbe.mapMatch(deviceType, deviceId, payload).then(function(prob){
 		driverInsightsProbe.sendProbeData([prob]);
-
+		return prob;
+	})['catch'](function(er){
+		// in case of failure in map match, generate probe from payload for tripRoute
+		var m = moment(payload.ts);
+		var prob = {
+				"timestamp": m.format(), // ISO8601
+				"matched_longitude": payload.lng,
+				"matched_latitude": payload.lat,
+				"matched_heading": payload.matched_heading,
+				"matched_link_id": payload.matched_link_id || payload.link_id,
+				"speed": payload.speed || 0,
+				"mo_id": deviceId,
+				"trip_id": payload.trip_id,
+				"map_matched": false
+		};
+		return prob;
+	})).then(function(prob){
 		var trip_id = payload.trip_id;
 		var routeCache = tripRouteCache[trip_id];
 		if(!routeCache){
@@ -66,7 +82,7 @@ IOTF.on("+", function(payload, deviceType, deviceId){
 				insertTripRouteTimer = null;
 			}, 5000);
 		}
-	});
+	}).done();
 });
 
 
@@ -106,7 +122,8 @@ var driverInsightsProbe = {
 					"mo_id": deviceId,
 					"trip_id": payload.trip_id
 				};
-			if(!matched.road_type && prob.matched_link_id){
+			if(!matched.road_type && prob.matched_link_id && deviceType !== 'ConnectedCarDevice'){ // TODO stop adding road_type for simulation cars
+//			if(!matched.road_type && prob.matched_link_id){
 				return contextMapping.getLinkInformation(prob.matched_link_id).then(function(linkInfo){
 					if(linkInfo.properties && linkInfo.properties.type){
 						prob.road_type = linkInfo.properties.type;

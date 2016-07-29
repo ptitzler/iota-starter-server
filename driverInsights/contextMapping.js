@@ -182,7 +182,38 @@ var contextMapping = {
 			};
 		});
 },
-	getLinkInformation: function(link_id){
+	getLinkInformation: function(link_id, ignoreCache){
+		// Cache the link information to reduce the number of Context Mapping API call
+		if(!ignoreCache){
+			if(!this._linkInformationCache){
+				this._linkInformationCache = {};
+				this._linkInformationCacheHit = 0;
+				this._linkInformationCacheMiss = 0;
+			}
+			var cachedResult = this._linkInformationCache[link_id];
+			if(cachedResult){
+				this._linkInformationCacheHit ++;
+				debug('[CACHE] cache hit for link %s!', link_id);
+				cachedResult.lastAccess = Date.now(); // update time
+				return Q(cachedResult.data);
+			}else{
+				this._linkInformationCacheMiss ++;
+				debug('[CACHE] cache MISSED for link %s. Hit rate: %f', link_id, this._linkInformationCacheHit / (this._linkInformationCacheHit + this._linkInformationCacheMiss));
+			}
+			// reduce cache size to half when it exceeds 200
+			var allKeys = Object.keys(this._linkInformationCache);
+			if(allKeys && allKeys.length > 1000){
+				debug('[CACHE] cache size is large %d. Reducing...', allKeys.length);
+				var sorted = _.sortBy(allKeys, (function(key){
+					return this._linkInformationCache[key].lastAccess;
+				}).bind(this));
+				for(var i = 0; i < sorted.length / 2; i++){
+					delete this._linkInformationCache[sorted[i]];
+				}
+				debug('[CACHE]   cache size is reduced to %d.', Object.keys(this._linkInformationCache).length);
+			}
+		}
+		
 		var deferred = Q.defer();
 		var options = {
 			url: this.contextMappingConfig.baseURL + "/mapservice/link" +
@@ -195,12 +226,20 @@ var contextMapping = {
 				sendImmediately: true
 			}
 		};
+		var this_ = this;
 		request(options, function(error, response, body){
 			if(!error){
 				try{
 					var responseJson = JSON.parse(body);
 					if(responseJson.links && responseJson.links.length > 0){
 						debug("link information retrieved url: " + options.url + "\n body: " + body);
+						if(!ignoreCache && this_._linkInformationCache){
+							debug('[CACHE] Caching link id data %s!', link_id);
+							this_._linkInformationCache[link_id] = {
+									data: responseJson.links[0],
+									lastAccess: Date.now(),
+							};
+						}
 						deferred.resolve(responseJson.links[0]);
 					}else{
 						console.error("link information not found\n url: : " + options.url + "\n body: " + body);
