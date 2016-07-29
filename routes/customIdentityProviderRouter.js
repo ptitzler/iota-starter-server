@@ -16,9 +16,10 @@
 var router = module.exports = require('express').Router();
 var jsonParser = require('body-parser').json();
 
-// Using hardcoded user repository
+// user repository
 var userRepository = {
-	"tom":  { password: "tom" , displayName: "Tom" , dob:"Janualy 1, 2016"}
+	// users are added as below
+	// "tom":  { password: "tom" , displayName: "Tom" , dob:"Janualy 1, 2016"}
 }
 
 router.post('/:tenantId/:realmName/startAuthorization', jsonParser, function(req, res){
@@ -50,6 +51,13 @@ router.post('/:tenantId/:realmName/handleChallengeAnswer', jsonParser, function(
 	var password = req.body.challengeAnswer["password"];
 
 	var responseJson = { status: "failure" };
+
+    // add a new user when the username does not exist in user repository.
+	// username "" is not added because it is used to cancel login on mobile app.
+    if (username != "" && userRepository[username] == null) {
+        userRepository[username]={password: password, displayName: username, dob:"Janualy 1, 2016"};
+        console.log("A new userId is added ::", username);
+    }
 
 	var userObject = userRepository[username];
 	if (userObject && userObject.password == password ){

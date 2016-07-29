@@ -44,6 +44,13 @@ var WATCH_JOB_STATUS_INTERVAL = new Number(process.env.WATCH_JOB_STATUS_INTERVAL
  * driverInsightsAnalyze is an exported module
  */
 _.extend(driverInsightsAnalyze, {
+	TRIP_ANALYSIS_STATUS: {
+		NOT_STARTED: {id: "0", status: "NOT_STARTED", message: "Driver behavior analysis not started"},
+		PENDING: {id: "1", status: "PENDING", message: "Driver behavior results pending"},
+		SUCCEEDED: {id: "2", status: "SUCCEEDED", message: "Driver behavior analysis succeeded"},
+		FAILED: {id: "3", status: "FAILED", message: "Driver behavior analysis failed"}
+	},
+
 	// Configurations for Driver Behavior service is specified in ./probe.js
 	driverInsightsConfig: driverInsightsProbe.driverInsightsConfig,
 	
@@ -125,6 +132,7 @@ _.extend(driverInsightsAnalyze, {
 				if(body.job_id){
 					self.watchingJobs.push(body.job_id);
 					self._setWatchingTask();
+					driverInsightsTripRoutes.setJobId(body.job_id, from, to);
 				}
 				self.last_job_ts = moment().valueOf();
 			} else {
@@ -284,6 +292,70 @@ _.extend(driverInsightsAnalyze, {
 		}else{
 			return Q({message: "trip_id nor trip_uuid is not specified"});
 		}
+	},
+
+	getTripAnalysisStatus: function(trip_id){
+		var deferred = Q.defer();
+		var self = this;
+		
+		driverInsightsTripRoutes.getTripRouteRaw(trip_id)
+			.then(function(tripRoute){
+				var job_status = tripRoute.job_status;
+				if(job_status && job_status.id !== self.TRIP_ANALYSIS_STATUS.NOT_STARTED.id && job_status.id !== self.TRIP_ANALYSIS_STATUS.PENDING.id){
+					deferred.resolve(tripRoute.job_status);
+				}else if(tripRoute.job_id){
+					self.refreshTripAnalysisStatus(tripRoute.job_id).then(function(status){
+						deferred.resolve(status);
+					});
+				}else{
+					// This trip is created on the old version server
+					// A trip which doesn't have all of job_id, job_status and trip_uuid must be failed to analyze
+					deferred.resolve(self.TRIP_ANALYSIS_STATUS.FAILED);
+				}
+			});
+		return deferred.promise;
+	},
+	refreshTripAnalysisStatus: function(job_id){
+		var deferred = Q.defer();
+		var self = this;
+		this.getJobInfo(job_id, function(jobInfo){
+			var status = null;
+			if(jobInfo){
+				switch(jobInfo.job_status){
+				case "RUNNING":
+					status = self.TRIP_ANALYSIS_STATUS.PENDING;
+					break;
+				case "SUCCEEDED":
+					// Analysis for the trip seemed to be failed if trip_uuid is not assigned even though the analyze job is succeeded.
+					// fallthrough
+				case "KILLED":
+					// fallthrough
+				default:
+					// Default can be fail because this status only checked when trip_uuid is not assigned to the tripRoutes
+					status = self.TRIP_ANALYSIS_STATUS.FAILED;
+				break;
+				}
+			}else{
+				// The job has been replaced by an other succeeded job
+				// TODO job_id should be updated when jobs are replaced
+				status = self.TRIP_ANALYSIS_STATUS.FAILED;
+			}
+
+			driverInsightsTripRoutes.setJobStatus(job_id, status);
+			deferred.resolve(status);
+		}, function(err, response, body){
+			if(response && response.statusCode === 400){
+				// The job has been replaced by an other succeeded job
+				var status = self.TRIP_ANALYSIS_STATUS.FAILED;
+
+				driverInsightsTripRoutes.setJobStatus(job_id, status);
+				deferred.resolve(status);
+				return;
+			}
+			self._handleError(err, response, body);
+			deferred.reject(status);
+		});
+		return deferred.promise;
 	},
 
 	/**
@@ -598,25 +670,25 @@ _.extend(driverInsightsAnalyze, {
 	/**
 	* Get Job List
 	*/
-	getJobInfoList: function(callback){
+	getJobInfoList: function(callback, errorback){
 		console.log('Getting job list...');
-		this._run("GET", "/jobcontrol/jobList", null, null, callback, (this._handleError).bind(this));
+		this._run("GET", "/jobcontrol/jobList", null, null, callback, errorback || (this._handleError).bind(this));
 	},
 
 	/**
 	* Get a Job 
 	*/
-	getJobInfo: function(jobId, callback){
-		console.log('Getting job info: job_id = ' + jobId);
-		this._run("GET", "/jobcontrol/job", {job_id: jobId}, null, callback, (this._handleError).bind(this));
+	getJobInfo: function(job_id, callback, errorback){
+		console.log('Getting job info: job_id = ' + job_id);
+		this._run("GET", "/jobcontrol/job", {job_id: job_id}, null, callback, errorback || (this._handleError).bind(this));
 	},
 	
 	/**
 	* Delete a Job
 	*/
-	deleteJobResult: function(jobId, callback){
-		console.log('Deleting job result: job_id = ' + jobId);
-		this._run("DELETE", "/drbresult/jobResult", {job_id: jobId}, null, callback, (this._handleError).bind(this));
+	deleteJobResult: function(job_id, callback, errorback){
+		console.log('Deleting job result: job_id = ' + job_id);
+		this._run("DELETE", "/drbresult/jobResult", {job_id: job_id}, null, callback, errorback || (this._handleError).bind(this));
 	},
 	
 	/*
