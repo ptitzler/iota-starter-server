@@ -116,6 +116,8 @@ router.get('/device/recommendation/:deviceId/:lat/:lng/:stime/:etime', function(
 var device_credentials = dbClient.getDB("device_credentials");
 
 router.get('/device/credentials/:deviceId', authenticate, function(req,res){
+	res.status(500).send("Unavailable temporarily");
+	/*
 	var deviceId = req.params.deviceId;
 	var ownerId = req.query && req.query.ownerOnly && req.get("iota-starter-uuid");
 	var token = devices.getCredentials({deviceID: deviceId, ownerID: ownerId}, true).then(function(creds){
@@ -128,6 +130,7 @@ router.get('/device/credentials/:deviceId', authenticate, function(req,res){
 			return res.status(500).send(err);
 		}
 	}).done();
+	*/
 });
 
 /*
