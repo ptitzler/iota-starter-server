@@ -21,7 +21,7 @@ var indexRouter = module.exports = require('express').Router();
 var appEnv = require("cfenv").getAppEnv();
 
 indexRouter.get('/', function(req, res) {
-	res.render('index', {});
+	res.redirect('/top');
 });
 
 indexRouter.get('/debug', function(req, res) {

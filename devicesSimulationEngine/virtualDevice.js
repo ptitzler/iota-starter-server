@@ -311,6 +311,13 @@ virtualDevice.prototype.onCommand = function(commandName,format,payload,topic){
 };
 
 virtualDevice.prototype.onError = function(err){
+	if(err.message && err.message.indexOf('ot authorized') >= 0){
+		// stop reconnecting on auth failure
+		if (this.deviceClient && this.deviceClient.mqtt){
+			this.deviceClient.mqtt.end(false, function(){});
+			this.deviceClient.mqtt = null;
+		}
+	}
 	this.emit("connectionError", this, err);
 	this.dumpError("error in iotF client ", err);
 };
