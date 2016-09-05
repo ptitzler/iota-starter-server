@@ -32,7 +32,7 @@ router.post('/:tenantId/:realmName/startAuthorization', jsonParser, function(req
 	var responseJson = {
 		status: "challenge",
 		challenge: {
-			text: "Enter username and password"
+			text: "Enter username and password."
 		}
 	};
 
@@ -52,8 +52,7 @@ router.post('/:tenantId/:realmName/handleChallengeAnswer', jsonParser, function(
 
 	var responseJson = { status: "failure" };
 
-    // add a new user when the username does not exist in user repository.
-	// username "" is not added because it is used to cancel login on mobile app.
+    // add a new user when the username does not exist in user repository except ""
     if (username != "" && userRepository[username] == null) {
         userRepository[username]={password: password, displayName: username, dob:"Janualy 1, 2016"};
         console.log("A new userId is added ::", username);
@@ -72,6 +71,12 @@ router.post('/:tenantId/:realmName/handleChallengeAnswer', jsonParser, function(
 		}
 	} else {
 		console.log("Login failure for userId ::", username);
+		var responseJson = {
+			status: "challenge",
+			challenge: {
+				text: "Login failed. Re-enter username and password."
+			}
+		};
 	}
 
 	res.status(200).json(responseJson);

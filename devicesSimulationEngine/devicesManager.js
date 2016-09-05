@@ -253,9 +253,9 @@ devicesManager.prototype.disconnectDevice = function (deviceID) {
 	var device = this.devices[deviceID];
 	if(!device){
 		console.error("cannot disconnect unknow device ID: " + deviceID);
-	}
-	if(device.isConnected())
+	}else if(device.isConnected()){
 		device.disconnect();
+	}
 };
 
 devicesManager.prototype.setDeviceAttribute = function (deviceID, attrName, value) {

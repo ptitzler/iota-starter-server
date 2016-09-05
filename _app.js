@@ -278,7 +278,7 @@ function createSimulationAround(lat, lng, numOfCars, radius){
 				debug('  cannot create car at the location. seems there is no road around.');
 				return Q([]);
 			}
-			return devicesCache.reserveDevices("ConnectedCarDevice", carAttrs.length)
+			return allocateSimulationDevices("ConnectedCarDevice", carAttrs.length)
 				.then(function(devices){
 					var respDevices = devices.map(function(device, index){
 						var respDevice = {deviceID: device.deviceID};
@@ -295,6 +295,92 @@ function createSimulationAround(lat, lng, numOfCars, radius){
 		});
 };
 
+/**
+ * Allocate "num" simulation devices of "devieType" type.
+ * 
+ * - Try to assign new devices for the device first
+ *   - This tries to use devices which have already been registered to IoT Platform
+ *   - Otherwise, tries to register new devices
+ * - In case IoT Platform is full and failed to create new devices
+ *   - Try to reuse some mostly elderly allocated devices where no reservation refers
+ *   
+ * Internally this manages MRU list of previously allocated device to determine
+ * which devices to reuse. 
+ * - Scenarios
+ *   1. At 10:00: requests 4 devices, and devices D1, D2, D3, D4 are returned
+ *   2. At 10:10: requests 4 devices, and devices D5, D6, D7, D8 are returned
+ *   
+ *   > At this point, the order is D4, D3, D2, D1, D8, D7, D6, D5.
+ *     When the request interval are more than 10 min, all devices in the former overs the latter ones
+ *   
+ *   3. At 10:15: requests 4 devices, and devices D9, D10, D11, D12 are returned
+ *   
+ *   > At this point, the order is: D4, D3, D2, D1, D8, D7, D12, D6, D11, D5, D10, D9
+ *     When the request interval is less than 10 min, the device order are merged depending on the the interval (ration of (the interval / 10min))
+ */
+var allocateSimulationDevices = (function(){
+	var activeSimulationDevices = {}; // deviceID: { deviceID: [ID]last_access_ts: <millis Date.now()>, last_ord_adj: <millis> } 
+	var sortedActiveSimualtionDevices = []; //
+	// Update devices MRU list
+	var updateAllocationHistory = function(deviceIDs){
+		last_access_ts = Date.now();
+		// update device timestamp
+		deviceIDs.forEach(function(deviceID, index){
+			var device = activeSimulationDevices[deviceID];
+			if(!device){
+				device = activeSimulationDevices[deviceID] = {deviceID: deviceID};
+				sortedActiveSimualtionDevices.push(device);
+			}
+			device.last_access_ts = last_access_ts;
+			device.last_ord_adj = (10 * 60 * 1000) * ((deviceIDs.length - index) / deviceIDs.length);
+		});
+		// sort
+		sortedActiveSimualtionDevices.sort(function(a,b){
+			// if the access is more than 5 min. before, order by (ts -> index)
+			function w(d) { return d.last_access_ts + d.last_ord_adj; }
+			return w(a) - w(b);
+		});
+	};
+	// Find devices available for reuse
+	var findReusableDeviceIDs = function(num){
+		// "Reusable device" is a (1) connected, and (2) not in active reservations
+		// - the result list should be ordered by preferred late, which is calculated based on Most-Recently-Used.
+		var reusableDeviceCandidates = sortedActiveSimualtionDevices.slice(0, num*3).map(function(d){ return d.deviceID });
+		debug('allocateSimulationDevices:   Rusable device candidates in order are: ', reusableDeviceCandidates);
+		
+		return dbClient.searchView('activeReservations', {keys: reusableDeviceCandidates})
+		.then(function(result){
+			// delete devices in active reservations
+			var reserved = [].concat(result.rows).map(function(row){
+				return row.key;
+			});
+			debug('allocateSimulationDevices:   Devices in active reservations are: ', reserved);
+			var reusableDevices = reusableDeviceCandidates.filter(function(deviceID){
+				return (reserved.indexOf(deviceID) === -1); // retain unused
+			});
+			debug('allocateSimulationDevices:   Reusable devices are: ', reusableDevices);
+			return reusableDevices.splice(0, num);
+		});
+	};
+	
+	return function(devieType, num){
+		var baseAllocDevices = Q(devicesCache.reserveDevices(devieType, num)).then(function(r){return r;})['catch'](function(er){
+				debug('allocateSimulationDevices: Failed to create simulation devices. Trying to reuse existing devices...')
+				return findReusableDeviceIDs(num).then(function(deviceIDs){
+					debug('allocateSimulationDevices: Reusing devices: ', deviceIDs);
+					if(deviceIDs && deviceIDs.length > 0){
+						return devicesCache.reuseDevices(deviceIDs);
+					}
+					throw er; // throw the original error in case of there is no reusalbe devices
+				});
+			});
+		return Q(baseAllocDevices).then(function(devices){
+			updateAllocationHistory(_.pluck(devices, 'deviceID'));
+			return devices;
+		});
+	};
+})();
+
 function startSimulation(){
 	//
 	// Start or resume simulation engine w/ cars which were in the previous session
@@ -303,6 +389,17 @@ function startSimulation(){
 	simulationClient = new simulationClientCtor({simulationConfigFile: schemafileName});
 	simulationClient.on("error", function (err){
 		console.error(err);
+	});
+	simulationClient.on('deviceConnectionError', function(deviceID, errMsg){
+		// delete device that experienced connection error with 'Not authorized'
+		if(errMsg && errMsg.indexOf('ot authorized') >= 0){ // Not authorized
+			console.error('Deleting device [%s] due to deviceConnectionError: %s', deviceID, errMsg);
+			devicesCache.deleteDevice({deviceID: deviceID, typeID: 'ConnectedCarDevice'}, true).done(function(){}, console.error.bind(console));
+			setTimeout(function(){
+				devicesCache.saveDevices();
+				devices.removeCredentials({deviceID: deviceID, typeID: 'ConnectedCarDevice'}).done(function(){}, console.error.bind(console));
+			}, 1000);
+		}
 	});
 	
 	// start engine
@@ -461,6 +558,7 @@ devicesCache.saveDevices = function(nRetry){
 		this._saveDevicesRetryTimeout = null;
 	}
 	
+	var self = this;
 	return Q(this._saveDevices())
 	.then(function(){
 		debug('  The registeredDevices document updated successfully.');
@@ -468,14 +566,14 @@ devicesCache.saveDevices = function(nRetry){
 		if(nRetry > 0){
 			// schedule retry
 			console.error('Caught error on saving the registeredDevices document. Retry after 2 munites.', er);
-			this._saveDevicesRetryTimeout = setTimeout((function(){
-				this.saveDevices(nRetry - 1);
-			}).bind(this), 120*1000); // schedule after 120 seconds
+			self._saveDevicesRetryTimeout = setTimeout((function(){
+				self.saveDevices(nRetry - 1);
+			}), 120*1000); // schedule after 120 seconds
 		} else {
 			console.error('ERROR: Caught error on saving the registeredDevices document. UNRECOVERABLE as retry count exceeded.', er);
 			return Q.reject(er);
 		}
-	}).done();
+	}).done(function(){}, console.error.bind(console));
 };
 devicesCache._saveDevicesRetryTimeout = null;
 
@@ -528,7 +626,7 @@ devicesCache.deleteDevice = function(device, force){
 	}
 
 	if (this.reservedDevices[deviceID]) {
-		this.releaseDevice(deviceID);
+		this.releaseDevice(device);
 	}
 	if (this.freeDevices[deviceID]) {
 		delete this.freeDevices[deviceID];
@@ -553,6 +651,30 @@ devicesCache.releaseDevice = function(device){
 };
 
 /**
+ * Reuse connected device(s) - Promise
+ * - This is a shortcut method for releasing and then reserving devices.
+ *   But this doesn't manipulate any device management vars (e.g. freeDevices, resrvedDevices) for stability
+ */
+devicesCache.reuseDevices = function(deviceIDs){
+	var this_ = this;
+	var reuseDevice = function(deviceID){
+		var device = this_.reservedDevices[deviceID];
+		if(!device){
+			console.error('ERROR: Trying to reuse disconnected device: ' + deviceID);
+			return Q.reject(); // precondition not met
+		}
+		try{
+			simulationClient && simulationClient.disconnectDevice(deviceID);
+			device.lastRunAttributesValues = [];
+			return Q(device);
+		}catch(e){
+			return Q.reject(e);
+		}
+	};
+	return Q.all([].concat(deviceIDs).map(reuseDevice)).delay(1000); // TODO ad-hoc 1 second delay for no promise on disconnectDevice
+}
+
+/**
  * Reserve devices for this simulation
  */
 devicesCache.reserveDevices = function(deviceType, numOfDevices){
@@ -567,12 +689,12 @@ devicesCache.reserveDevices = function(deviceType, numOfDevices){
 		reservation.push(device);
 	}
 
-	if(reservation.length < numOfDevices){
-		var deferred = Q.defer();
+	var howMuch2Create  = numOfDevices - reservation.length;
+	if(howMuch2Create > 0){
 		var _this = this;
-		var howMuch2Create = (numOfDevices <= 30) ? numOfDevices : 30;
+		howMuch2Create = (howMuch2Create <= 30) ? howMuch2Create : 30;
 		console.log('Creating ' + howMuch2Create + ' devices in the simulation engine...');
-		simulationClient.createDevices(deviceType, howMuch2Create).then(
+		var op = simulationClient.createDevices(deviceType, howMuch2Create).then(
 				function(devices){
 					debug(' ' + devices.length + ' devices are newly created');
 					devices.forEach(function(device){
@@ -586,15 +708,17 @@ devicesCache.reserveDevices = function(deviceType, numOfDevices){
 						}
 					}, _this);
 					_this.saveDevices();
-					deferred.resolve(reservation);
+					return Q(reservation);
 				})['catch'](function(err){
 					console.error(err);
-					deferred.reject({
+					if(reservation.length > 0) // even when it's fail to create new devices, resolve the promise with available devices
+						return Q(reservation);
+					return Q.reject({
 						status: 500, 
 						message: 'Failed to create new demo car devices: ' + (err.message || (err.data && err.data.message) || 'see console log for the details')
 					});
 				});
-		return deferred.promise;
+		return Q(op);
 	}
 	return Q(reservation);
 };
