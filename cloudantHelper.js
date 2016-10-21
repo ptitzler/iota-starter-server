@@ -1,19 +1,12 @@
 /**
  * Copyright 2016 IBM Corp. All Rights Reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed under the IBM License, a copy of which may be obtained at:
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * http://www14.software.ibm.com/cgi-bin/weblap/lap.pl?li_formnum=L-DDIN-AEGGZJ&popup=y&title=IBM%20IoT%20for%20Automotive%20Sample%20Starter%20Apps%20%28Android-Mobile%20and%20Server-all%29
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You may not use this file except in compliance with the license.
  */
-
 /*
  * This cloudantHelper provides two capabilities:
  * - A functions for operating with car-sharing application -- cloudantHelper
@@ -27,6 +20,11 @@ var connectedDevicesCache = require('./workbenchLib').connectedDevicesCache;
 var cloudantHelper = exports;
 var cloudantCreds = VCAP_SERVICES.cloudantNoSQLDB[0].credentials;
 var Cloudant = require('cloudant');
+
+/*
+ * Cloudant library initialization option
+ */
+var CLOUDANT_OPTS = {url: cloudantCreds.url, plugin: 'retry', retryAttempts: 5, retryTimeout: 500 };
 
 /*
  * Settings for the device and reservation database
@@ -60,7 +58,7 @@ function CloudantDeferred(dbname, db_promise){
 CloudantDeferred.prototype.ensureDB = function(dbName){
 	//connect to the database or create it if needed
 	var deferred = Q.defer();
-	Cloudant(cloudantCreds.url, function(err, cloudant){
+	Cloudant(CLOUDANT_OPTS, function(err, cloudant){
 		console.log('Connected to Cloudant');
 		
 		cloudant.db.list(function(err, all_dbs){
@@ -302,12 +300,12 @@ CloudantDeferred.prototype.view = function(designname, viewname, params){
 //
 
 //init cloudant DB connection
-var cloudant = Cloudant(cloudantCreds.url);
+var cloudant = Cloudant(CLOUDANT_OPTS);
 var db = null;
 
 cloudantHelper.getDBClient = function(){
 	var deferred = Q.defer();
-	Cloudant(cloudantCreds.url, function(err,cloudant) {
+	Cloudant(CLOUDANT_OPTS, function(err,cloudant) {
 		if(!err)
 			deferred.resolve(cloudant.db.use(CLOUDANT_DB_NAME));
 		else

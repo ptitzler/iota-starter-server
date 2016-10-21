@@ -4,7 +4,7 @@ declared-services:
     plan: iotf-service-free
   MobilityDB: 
     label: cloudantNoSQLDB 
-    plan: Shared
+    plan: Lite
   ContextMapping:
     label: mapinsights
     plan: free

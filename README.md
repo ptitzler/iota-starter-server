@@ -1,10 +1,27 @@
-# IoT for Automotive Starter app
-A demo app that uses Internet of Things Platform, Context Mapping and Driver Behavior services.
+# IBM IoT for Automotive - Mobility Starter Application server
+
+The IBM IoT for Automotive - Mobility Starter Application is a demo app that uses the **Watson IoT Platform**, **Context Mapping**, **Driver Behavior**, and other services on **IBM Bluemix** to help you to quickly build a smart car sharing automotive solution.
 
 ## Overview
-With IoT for Automotive Starter app, you will experience a simulation of how Tom, an automobile owner and driver, can use a mobile app to rent a car provided by an automotive company. This new type of service will help the automotive company attract and retain customers. The design of future cars and services can be based on this new source of customer and vehicle data. You will use a mobile app on an iOS phone and experience how Tom can find an available car located near him and reserve the car. You will experience how Tom can review his driving behavior, which is analyzed by Driver Behavior service on Bluemix.
 
-This app demonstrates how quickly you can build an app on Bluemix using the following services:
+The starter app provides a mobile app for customers to quickly find and hire a car without human intervention from a car-hire company. The server component provides features that can help car hire companies manage a pool of cars and to get insights into customer usage and requirements that can also help to attract and retain customers. 
+
+## Server component 
+
+The server component provides the back-end car sharing and system monitoring services. Car-hire companies can use the server component features to do the following car-hire operations tasks:
+
+- Monitor the location of all cars in the hire pool on a GIS map
+- View detailed information about each vehicle and its current status
+- View and manage customer information
+- Evaluate and score customer driving behavior 
+
+### Mobile app 
+
+Customers who want to hire a car can use the Mobility Starter Application mobile app to search for available cars that are nearby, reserve a car, unlock the car, and then start driving the car. While you drive the car, the service tracks your location and also records your driving behavior. When you reach your driving destination, you can view information about each trip that you took in the car and you can also view your driving behavior score. You can also see how this new type of service generates vehicle data that helps automotive companies attract and retain customers.
+
+For more information about the mobile app for either iOS or Android devices, see [Deploying the mobile app](#deploy_mobile_app).
+
+The Mobility Starter Application server demonstrates how quickly you can build a car sharing solution on Bluemix by using the following services:
 
    * [IBM Watson IoT Context Mapping](https://console.ng.bluemix.net/catalog/services/context-mapping/)
    * [IBM Watson IoT Driver Behavior](https://console.ng.bluemix.net/catalog/services/driver-behavior/)
@@ -14,33 +31,24 @@ This app demonstrates how quickly you can build an app on Bluemix using the foll
    * [Push Notifications](https://console.ng.bluemix.net/catalog/services/push-notifications/)
    * [Mobile Client Access](https://console.ng.bluemix.net/catalog/services/mobile-client-access/)
 
-You can follow the steps below to set up the IoT for Automotive Starter app.
+## Deploying the Mobility Starter Application server on Bluemix
 
-## Application Requirements
-You need to install a mobile application on an iOS phone to experience the simulation.
-A mobile application source code is available in [this GitHub repository](https://github.com/ibm-watson-iot/iota-starter-carsharing)
+You can automatically deploy an instance of the Mobility Starter Application server on Bluemix by clicking [![Deploy to Bluemix](https://bluemix.net/deploy/button.png)](https://bluemix.net/deploy?repository=https://github.com/ibm-watson-iot/iota-starter-server.git). You can also deploy the app manually. 
 
-## Deploy the app on Bluemix
-You can deploy your own instance of IoT Automotive Starter app to Bluemix.
-To do this, you can either use the _Deploy to Bluemix_ button for an automated deployment or follow the steps below to create and deploy your app manually.
+To manually deploy your own instance of the Mobility Starter Application server on Bluemix, complete all of the following steps:
 
-[![Deploy to Bluemix](https://bluemix.net/deploy/button.png)](https://bluemix.net/deploy?repository=https://github.com/ibm-watson-iot/iota-starter-server.git)
-
-1. Create a Bluemix Account.
-
-  [Sign up][bluemix_signup_url] for Bluemix, or use an existing account.
+1. Register an account on Bluemix or use an existing valid account.
 
 2. Download and install the [Cloud-foundry CLI][cloud_foundry_url] tool.
 
-3. Clone the app to your local environment from your terminal using the following command:
+3. Clone the Mobility Starter Application app to your local environment by using the following Terminal command:
 
   ```
   git clone https://github.com/ibm-watson-iot/iota-starter-server.git
   ```
+4. Change to the directory that you just created.
 
-4. `cd` into this newly created directory.
-
-5. Edit the `manifest.yml` file and change the `<name>` and `<host>` to something unique.
+5. Edit the `manifest.yml` file and change the values of `<name>` and `<host>` to something unique.
 
   ```
   applications:
@@ -53,16 +61,17 @@ To do this, you can either use the _Deploy to Bluemix_ button for an automated d
     memory: 640M
          :
   ```
-  The host you use will determinate your application URL initially, for example, `<host>.mybluemix.net`.
+  The host value is used to generate your application URL, which is in the following syntax:
+  `<host>.mybluemix.net`.
 
-6. Connect to Bluemix in the command line tool and follow the prompts to log in:
+6. By using the command line tool, connect to Bluemix and log in when prompted.
 
   ```
   $ cf api https://api.ng.bluemix.net
   $ cf login
   ```
 
-7. Create Internet of Things Platform, Context Mapping and Driver Behavior service in Bluemix.
+7. Create an instance of Watson IoT Platform, Context Mapping, and Driver Behavior services on Bluemix.
 
   ```
   $ cf create-service iotf-service iotf-service-free IoTPlatform
@@ -70,179 +79,190 @@ To do this, you can either use the _Deploy to Bluemix_ button for an automated d
   $ cf create-service driverinsights free DriverBehavior
   ```
 
-8. This app uses Cloudant NoSQL DB and Weather Company Data service as well. Create the services in Bluemix.
+8. Create an instance of the Cloudant NoSQL DB and the Weather Company Data services on Bluemix.
 
   ```
-  $ cf create-service cloudantNoSQLDB Shared MobilityDB
+  $ cf create-service cloudantNoSQLDB Lite MobilityDB
   $ cf create-service weatherinsights Free-v2 WeatherInsights
   ```
 
-9. Push the app to Bluemix. You need to perform additional steps when it is deployed, so you must add the option --no-start argument.
+9. Push the app to Bluemix. As you will need to complete further steps when the app is deployed, be sure to use the **--no-start** argument by using the following push command:
 
   ```
   $ cf push --no-start
   ```
 
-You now have your very own instance of the IoT for Automotive Starter app on Bluemix.  
+You now have your very own instance of the IoT for Automotive - Mobility Starter Application on Bluemix.  
 
-## Before using the app
-Before using the IoT for Automotive Starter app, you need to set up services and install a mobile app.
+To run the car sharing Mobility Starter Application you need to install the mobile app and connect it to your server instance. You must also activate the IoT for Automotive services on Bluemix that you created earlier when you deployed your server instance and then complete the optional configuration steps.
 
-### Activate Context Mapping and Driver Behavior services  
-Follow the steps below to make the Context Mapping and Driver Behavior services ready for use.
 
-1. Make sure that the app is not running on Bluemix.
+## <a name="deploy_mobile_app"></a>Deploying the mobile app
+
+After deploying the server component, to simulate and run the starter experience, you need to install a mobile app. The mobile app is available for both iOS and Android devices.
+
+- To access the mobile app source code and deployment instructions for iOS, see [iota-starter-carsharing](https://github.com/ibm-watson-iot/iota-starter-carsharing).
+- To access the mobile app source code and deployment instructions for Android, see [iota-starter-carsharing-android](https://github.com/ibm-watson-iot/iota-starter-carsharing-android).
+
+To play a demo of the app, see the [Starter Experience home page](https://iot-automotive-starter.mybluemix.net).
+
+### Activating the services
+
+Before you can use the application you must activate the **Context Mapping** and **Driver Behavior** services on Bluemix, as outlined in the following steps:
+
+1. Make sure that the app is not running on Bluemix. 
 
 2. Open the [Bluemix dashboard][bluemix_dashboard_url] in your browser.
 
-3. Open the Context Mapping service and wait for a few seconds until credentials show up.
+3. Open the **Context Mapping** service and wait for a few seconds until your credentials display.
 
-4. Likewise, open the Driver Behavior service from the dashboard.
+4. Open the **Driver Behavior** service.
 
-### (Optional) Setup Push Notifications Service
-You can enable push notifications when the weather at the drop off time of your car reservation becomes bad. Follow the steps below to make the Push Notifications service ready for use.
+### (Optional) Set up the Push Notifications service
 
-1. Open the [Bluemix dashboard][bluemix_dashboard_url] in your browser.
+You can enable push notifications when the weather at the drop off time of your car reservation becomes bad. Complete the following steps to enable push notifications:
 
-2. Open the created app
+1. Start a browser and open the [Bluemix dashboard][bluemix_dashboard_url].
 
-3. Click ADD A SERVICE OR API button
+2. Open the app that you created.
 
-4. Select Push Notifications in the catalog
+3. Click **ADD A SERVICE OR API**.
 
-5. Click CREATE button
+4. From the catalog, select **Push Notifications**.
 
-6. Open the created Push Notifications service
+5. Click **CREATE**.
 
-7. Click Setup Push button
+6. Open the push notifications service that you just created.
 
-8. Register your Apple Push Notification Service certificate
+7. Click **Setup Push**.
 
-See [Configuring credentials for Apple push notifications](https://console.ng.bluemix.net/docs/services/mobilepush/t_push_provider_ios.html) for more information.
-
-### (Optional) Setup Mobile Client Access service
-The app provides a simple custom authentication service. If you want to use the service then configure the Mobile Client Access service for Bluemix to enable the authentication.
-
-1. Open the [Bluemix dashboard][bluemix_dashboard_url] in your browser
-
-2. Open the created app.
-
-3. Click ADD A SERVICE OR API button.
-
-4. Select Mobile Client Access in the catalog.
-
-5. Click CREATE button.
-
-6. Open the created Mobile Client Access service.
-
-7. Click the _Configure_ button under _Custom_.
-
-8. Enter the following authentication credentials.  
-__Realm name__ : `custauth`  
-__Custom Identity Provider Url__ : `https://<host>.mybluemix.net`
-
-9. Click Save button.
-
-10. In your [Bluemix dashboard][bluemix_dashboard_url], open the app.
-
-11. Click the _Environment Variables_ in the left bar.
-
-12. Open USER-DEFINED.
-
-13. Add the following variable and save it.  
-__Name__ : `MCA_AUTHENTICATION`  
-__Value__ : `true`
-
-Once you enable the authentication, you can log in to the app with any username and any password.  
-
-See [Configuring Mobile Client Access for custom authentication](https://console.ng.bluemix.net/docs/services/mobileaccess/custom-auth-config-mca.html) for more information.
-
-### Build and install a mobile app
-If you have not installed a mobile app on your iOS phone, follow the [instructions][mobile_app_readme].
-
-## Start the app
-1. Open the [Bluemix dashboard][bluemix_dashboard_url] in your browser.
-
-2. Start the app.
-
-Congratulations! You are ready to use your own instance of IoT for Automotive Starter app now. Open `http://<host>.mybluemix.net` in your browser and follow the instructions in the top page to connect your mobile app to the IoT for Automotive Starter app.
+8. Register your Apple Push Notification Service certificate as outlined in [Configuring credentials for Apple Push Notifications](https://console.ng.bluemix.net/docs/services/mobilepush/t_push_provider_ios.html).
 
 
-## (Optional) Connect your own device to the app
-When you start your mobile app, you might see some cars around the current location in the map. They are simulated cars generated automatically by a simulation engine of the app. Instead of them, you can try with your own sensor device that can send location data by registering it to the app as follows.
+### (Optional) Setting up the Mobile Client Access service
 
-### Disable a simulation engine
-Simulated cars and your device can coexist. However, you can disable simulated cars if you do not want to see them.
+The Mobililty Starter Application provides a simple custom authentication service that you can optionally use. To use the service, configure the Mobile Client Access service for Bluemix and enable the authentication.
 
-1. In your [Bluemix dashboard][bluemix_dashboard_url], open the app.
+1. Start a browser and open the [Bluemix dashboard][bluemix_dashboard_url].
+
+2. Open the app.
+
+3. Click **ADD A SERVICE OR API**.
+
+4. In the catalog, select Mobile Client Access.
+
+5. Click **CREATE**.
+
+6. Open the Mobile Client Access service that you just created.
+
+7. Under **_Custom_**, click **_Configure_**.
+
+8. Enter the following authentication credentials:
+-  __Realm name__ : `custauth`  
+-  __Custom Identity Provider Url__ : `https://<host>.mybluemix.net`
+
+9. Click **Save**.
+
+10. Go to your [Bluemix dashboard][bluemix_dashboard_url] and open the app.
+
+11. Click ** _Environment Variables_**.
+
+12. Click **USER-DEFINED**.
+
+13. Add the following variable and then save it.  
+-  __Name__ : `MCA_AUTHENTICATION`  
+-  __Value__ : `true`
+
+After you enable the authentication, you can log in to the app with any user name and password credentials.
+
+For more information, see [Configuring Mobile Client Access for custom authentication](https://console.ng.bluemix.net/docs/services/mobileaccess/custom-auth-config-mca.html).
+
+## Running the app
+
+- To start your Mobility Starter Application instance, open the [Bluemix dashboard][bluemix_dashboard_url] and start the app.
+
+Congratulations! You are ready to use your own instance of the IoT for Automotive Starter app. Open `http://<host>.mybluemix.net/monitoring/#/settings` in your browser and follow the instructions in the mobile client connection section to connect your mobile app to the IoT for Automotive - Mobility Starter Application.
+
+## Connecting your own devices to the app
+
+When you start your mobile app, you might see some simulated cars plotted at the current location on the map. The simulated cars are  generated automatically by the simulation engine that is provided by the app. Instead of using the simulated cars, you can connect and register your own physical devices to the app by using the following instructions.
+
+### Disabling the simulation engine
+
+Your physical devices can coexist with the simulated cars in the app. You can disable the simulated cars if you prefer. 
+
+1. Go to your [Bluemix dashboard][bluemix_dashboard_url] and open the app.
 
 2. Stop the app.
 
-3. Click the _Environment Variables_ in the left bar.
+3. Click **_Environment Variables_** in the left bar.
 
-4. Open USER-DEFINED.
+4. Click **USER-DEFINED**.
 
-5. Add the following variable and save it.
-```
-DISABLE_DEMO_CAR_DEVICES=true
-```
+5. Insert `DISABLE_DEMO_CAR_DEVICES=true` and save the change.
+
 6. Restart the app.
 
-### Register your device
-To show your device on a map on the mobile app, you need to register your device firstly.
+### Registering your device
 
-1. Open `http://<host>.mybluemix.net/admin/ui/device` in your browser.
+To display your device on a map on the mobile app, register your device by completing the following instructions:
 
-2. Input credentials for the page and click _OK_. By default, the credentials are ADMIN/ADMIN.
+1. Start your browser and open `http://<host>.mybluemix.net/admin/ui/device`.
+
+2. Enter your credentials and click **_OK_**. By default, the credentials are ADMIN/ADMIN.
 
 3. If you see simulated cars in the list, you can delete them.  A device type for simulated cars is __ConnectedCarDevice__.
 
-4. click _Create_ button.
+4. Click **_Create_**.
 
-5. Fill out the form and click _Create_ button.
+5. Complete the required fields on the form and then click **_Create_**.
 
-  You can leave device ID blank. If it is blank, 8-digit ID will be generated automatically. Otherwise, you can specify unique ID that identifies your device (e.g. MAC address).
+  Specify a unique ID that identifies your device, for example, a MAC address. If you do not enter a device ID, an 8-digit ID will be generated automatically.
 
-6. Go back to the list page and confirm that your car name and photo is shown in the list.
+6. Go back to the list page and confirm that your car name and photo displays in the list.
 
-Credentials for vehicle management page are set to ADMIN/ADMIN by default. However, they can be changed with environment variables.
+Credentials for vehicle management page are set to ADMIN/ADMIN by default. However, they can be changed by setting the following environment variables:
 ```
 ADMIN_USER=<administrator name>
 ADMIN_PASSWORD=<administrator password>
 ```
 
-Your sensor device needs to publish car probe data like location and speed to the Internet of Things Platform in order to create your own trip data. If your device is registered with the above form successfully, the device is added to the Internet of Things Platform with the device type  __UserOwnedCarDevice__.
+To create trip data, your connected sensor device must publish car probe data to Watson IoT Platform. Car probe data includes information about the driving trip, for example, location and speed. If your device is registered successfully, it is added to Watson IoT Platform with the device type __UserOwnedCarDevice__.
 
-You can also add your device to the Internet of Things Platform by yourself. See the following IBM Watson IoT Platform pages.
+You can also add your device to Watson IoT Platform directly. For more information, see the following resources:
  * [Quickstart](https://quickstart.internetofthings.ibmcloud.com/)
  * [How to Register Devices in IBM Watson IoT Platform](https://developer.ibm.com/recipes/tutorials/how-to-register-devices-in-ibm-iot-foundation/)
 
 
- ### Connect your device to the Internet of Things Platform
+### Connecting your device to Watson IoT Platform
 
-Once your device is registered to the Internet of Things Platform, your device can connect to the Internet of Things Platform and send car probe data using credentials assigned for your device.
+When your device is registered to your Watson IoT Platform instance, your device can connect to Watson IoT Platform and send car probe data by using the credentials that are assigned to your device. Lightweight API commands are provided with the app.
 
-To make the settings easier, the app provides the lightweight API to get credentials.
+To simplify configuration and retrieve the credentials, you can use the following API command:
 ```
 GET /user/device/credentials/:deviceId
 ```
-Note that you need to disable the Mobile Client Access service to call the API from your device. The deviceId is the ID that has been assigned to your device. If you have not registered your device with the above step, the API will register your device automatically with specified ID and returns credentials for it. In this case, default car information (e.g. name, photo, car model and so on) is assigned automatically. The default name is __User owned car__.
+**Notes:** 
+- To call the API from your device, you must disable the Mobile Client Access service. 
+- The **deviceId** value is the ID that is assigned to the device. If you did not register your device by using the above step, the API will register your device automatically with the specified ID and returns the credentials for the device. In this case, the default car values, for example name, photo, and car model, are assigned automatically. The default name is __User owned car__.
 
-### Modify car details
-If you want to modify car information, follow the steps below.
+### Modifying car details
 
-1. Open `http://<host>.mybluemix.net/admin/ui/device` in your browser.
+To modify car information, complete the following steps:
 
-2. Input credentials for the page and click _OK_. By default, the credentials are ADMIN/ADMIN.
+1. From your browser, open `http://<host>.mybluemix.net/admin/ui/device`.
 
-3. Click your deviceID to open Car details page.
+2. Enter the credentials when prompted and then click **_OK_**. By default, the credentials are ADMIN/ADMIN.
 
-4. Modify values and click _Update_ button.
+3. Click your device ID to open the car details page.
 
-5. Go back to the list page and confirm that your car name and photo have been updated correctly.
+4. Modify the required values and then click **_Update_**.
+
+5. Go back to the list page and confirm that your car name and photo were updated correctly.
 
 ### Data format
-Your device is expected to publish car probe data to the Internet of Things Platform in the following format.
+
+Your device must publish car probe data to the Watson IoT Platform in the following data format.
 
 ```
 {
@@ -254,14 +274,15 @@ Your device is expected to publish car probe data to the Internet of Things Plat
   }
 }
 ```
-The `lat` and `lng` are required to show your car on a map on your mobile app. Set the  location of your device as values of the `lat` and `lng`. When you record your trip route after you reserve the car, the `trip_id` and `speed` are also required. The same `trip_id` must be set during the reservation.
+The `lat` and `lng` values are required to plot and display the location of your car on a map in the mobile app. Set the `lat` and `lng` values to match your device location. When you record your trip route after you reserve the car, the `trip_id` and `speed` values are also required. The value of `trip_id` must match the value that you set during the reservation.
 
 ### Create trip data with your device
-Now you are ready to create your trip data with your device. Follow the steps below.
 
-1. Connect your device to the Internet of Things Platform.
+To create trip data for your device, complete the following steps:
 
-2. Start sending the latest location data from the device. Keep sending it at short intervals.
+1. Connect your device to Watson IoT Platform.
+
+2. Start sending the latest location data from the device. Keep sending the location data at short intervals.
 
 3. Start the mobile app and show the current location on a map. Note that the device must be located at the same location.
 
@@ -279,33 +300,32 @@ Now you are ready to create your trip data with your device. Follow the steps be
 
 You can see your trip route on Trips tab and driving behavior on Profile tab. It may take some minutes to analyze your trip data.
 
-### Use the mobile app to create trip data
-If you reserve a simulated car and unlock it on the mobile app, the simulated car start running automatically around the location until the reservation is completed. You can see the simulated trip route and its driving behaviors on the mobile app after you complete the reservation.
+### Using the mobile app to create trip data
 
-Also, the mobile app provides a capability to send car probe data. Therefore, instead of your own sensor device, you can use the mobile app to record your trip data easily without complex device settings described above. Select the _Analyze My Driving_ option at the top page of the mobile app. The mobile app registers itself to the Internet of Things Platform and starts sending probe data. And, by driving around with your iOS phone, data from your mobile app are recorded and analyzed in the app.
+If you reserve a simulated car and unlock it on the mobile app, the simulated car starts running automatically around the location until the reservation is completed. You can see the simulated trip route and associated driving behavior on the mobile app after you complete the reservation.
 
+The mobile app also provides capabilities to send car probe data. Therefore, instead of your own sensor device, you can use the mobile app to record your trip data easily without requiring the complex device settings that are described above. Select the _Analyze My Driving_ option at the top page of the mobile app. The mobile app registers itself to the Watson IoT Platform and starts sending car probe data. And, by driving around with your iOS or Android mobile device, data from your mobile app are recorded and analyzed in the app.
 
 ## Implementation
 
-The following diagram shows the components involved in the application and flows between the components. 	
+The following diagram shows the components that are used by the car sharing Mobility Starter Application and the flows that exist between the components. 	
 
 ![Components and flows](docs/components_and_flow.png)
 
-* **Reservation** handles a request related to a reservation. [routes/user/reservation.js](routes/user/reservation.js) has the implementation.
-* **Car Control** gets a request for controlling a car device e.g. unlock and lock a car. It sends a command to the target car through IoT Platform. [routes/user/reservation.js](routes/user/reservation.js) contains implementation for /carControl end point.
-* **Driver Profile** handles a request to access driver's behaviors using Driver Behavior service. [routes/user/insights.js](routes/user/insights.js) defines the end point and [driverInsights/analyze.js](driverInsights/analyze.js) has the implementation.
-* **Driving Analysis** gets events containing probe data from registered cars through IoT Platform and sends the probe data to Context Mapping service to get the corrected location, then sends the corrected location to Driver Behavior service to get the driver's behaviors. [driverInsights/probe.js](driverInsights/probe.js) is the entry point to explore the implementation. It also stores the probe data to Cloudant database "trip_route" that is used to retrieve a trip route (see [driverInsights/tripRoutes.js](driverInsights/tripRoutes.js)).
+* **Reservation** handles a request related to a reservation. The [routes/user/reservation.js](routes/user/reservation.js) component contains  the implementation.
+* **Car Control** gets a request for controlling a car device, for example, to lock or unlock a car. It sends a command to the target car through Watson IoT Platform. The [routes/user/reservation.js](routes/user/reservation.js) component contains implementation for /carControl end point.
+* **Driver Profile** handles a request to access a driver's behavior by using Driver Behavior service. The [routes/user/insights.js](routes/user/insights.js) component defines the end point and the  [driverInsights/analyze.js](driverInsights/analyze.js) component contains the implementation.
+* **Driving Analysis** gets events containing probe data from registered cars through Watson IoT Platform. It then sends the probe data to the Context Mapping service to get the corrected location and sends the corrected location to the Driver Behavior service to get the driver's behavior. The [driverInsights/probe.js](driverInsights/probe.js) component is the entry point to explore the implementation. It also stores the probe data to Cloudant database "trip_route" that is used to retrieve a trip route. For more information, see the  [driverInsights/tripRoutes.js](driverInsights/tripRoutes.js) component.
 * **Monitoring System** provides a dashboard showing real-time information about cars and reservations, and information about driver's behaviors extracted from probe data by Driver Behavior service. The Map page pulls car status and reservation information via HTTP requests, and also receives car probe events relayed by IoT Platform via Web Socket connection. The page aggregates those informations to visualize the real-time state of cars on a map. The Users page shows statistics of driving behaviors associated to users' reservations. The server side implementation periodically, every two hours by default, extracts driving behavior information from the __Reservation__ and the __Driver Profile__ components and caches them to a database. The page gets the statistics from the database via HTTP requests. The implementation includes static files in [public/monitoring](public/monitoring) folder and server-side implementations in [routes/monitoring](routes/monitoring) folder which provides the end points and data synchronization.
 
-* **Simulated Driving Data** is preset driving data under [devicesSimulation/data](devicesSimulation/data) folder. The data is passed to Driving Analysis directly in [devicesSimulation/simulationImporter.js](devicesSimulation/simulationImporter.js) that is called in [_app.js](_app.js).
-* **Cars (Simulator)** simulates car behaviors. The implementation is under [devicesSimulationEngine](devicesSimulationEngine) folder.
+* **Simulated Driving Data** is preset driving data under the [devicesSimulation/data](devicesSimulation/data) folder. The data is passed to Driving Analysis directly in [devicesSimulation/simulationImporter.js](devicesSimulation/simulationImporter.js) that is called in [_app.js](_app.js).
+* **Cars (Simulator)** simulates different types of car behaviors. The implementation is under the  [devicesSimulationEngine](devicesSimulationEngine) folder.
 
-
-## Report Bugs
-If you find a bug, please report it using the [Issues section](https://github.com/ibm-watson-iot/iota-starter-server/issues).
+## Reporting defects
+To report a defect with the IoT for Automotive - Mobility Starter Application server component, go to the [Issues](https://github.com/ibm-watson-iot/iota-starter-server/issues)) section.
 
 ## Troubleshooting
-The primary source of debugging information for your Bluemix app is the logs. To see them, run the following command using the Cloud Foundry CLI:
+To debug problems, check the Bluemix app logs. To view the logs, run the following command from the Cloud Foundry CLI:
 
   ```
   $ cf logs <application-name> --recent
@@ -314,7 +334,7 @@ For more detailed information on troubleshooting your application, see the [Trou
 
 ## Privacy Notice
 
-The IoT for Automotive Starter app includes code to track deployments to [IBM Bluemix](https://www.bluemix.net/) and other Cloud Foundry platforms. The following information is sent to a [Deployment Tracker](https://github.com/cloudant-labs/deployment-tracker) service on each deployment:
+The IoT for Automotive Starter app includes code to track deployments to [IBM Bluemix](https://www.bluemix.net/) and other Cloud Foundry platforms. During each deployment, the following information is sent to a [Deployment Tracker](https://github.com/cloudant-labs/deployment-tracker) service:
 
 * Application Name (`application_name`)
 * Space ID (`space_id`)
@@ -323,11 +343,11 @@ The IoT for Automotive Starter app includes code to track deployments to [IBM Bl
 * Labels of bound services
 * Number of instances for each bound service
 
-This data is collected from the `VCAP_APPLICATION` and `VCAP_SERVICES` environment variables in IBM Bluemix and other Cloud Foundry platforms. This data is used by IBM to track metrics around deployments of sample applications to IBM Bluemix to measure the usefulness of our examples, so that we can continuously improve the content we offer to you. Only deployments of sample applications that include code to ping the Deployment Tracker service will be tracked.
+The tracked data is collected from the `VCAP_APPLICATION` and `VCAP_SERVICES` environment variables in IBM Bluemix and other Cloud Foundry platforms. The data is used by IBM to track metrics around deployments of sample applications to IBM Bluemix to measure the usefulness of our examples, so that we can continuously improve the content that we offer to you. Only deployments of sample applications that include code to ping the Deployment Tracker service are tracked.
 
 ### Disabling Deployment Tracking
 
-Deployment tracking can be disabled by removing `require("cf-deployment-tracker-client").track();` from the beginning of the `app.js` main server file.
+You can disable the Deployment Tracking feature by removing `require("cf-deployment-tracker-client").track();` from the beginning of the `app.js` main server file.
 
 ## Useful links
 [IBM Bluemix](https://bluemix.net/)  
