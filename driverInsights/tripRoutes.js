@@ -18,6 +18,7 @@ var driverInsightsAnalyze = require('../driverInsights/analyze');
 var moment = require('moment');
 
 var TRIPROUTES_DB_NAME = "trip_routes";
+var JOB_STATUS_PREFIX = "job_status_";
 
 _.extend(tripRoutes, {
 	db: null,
@@ -92,7 +93,7 @@ _.extend(tripRoutes, {
 					var appendingRoutes = tripRoute.routes;
 					// The rows must be returned in the same order as the supplied "keys" array.
 					var doc = (!existingRoutes[index] || existingRoutes[index].key !== trip_id || existingRoutes[index].error === "not_found")
-								? {_id: trip_id, routes: [], job_status: driverInsightsAnalyze.TRIP_ANALYSIS_STATUS.NOT_STARTED}
+								? {_id: trip_id, routes: []}
 								: existingRoutes[index].doc;
 					doc.routes = doc.routes.concat(appendingRoutes).sort(function(a, b){
 						return a.ts - b.ts;
@@ -134,7 +135,7 @@ _.extend(tripRoutes, {
 		return deferred.promise;
 	},
 	getTripRouteById: function(trip_id, options){
-		var count = options.count || -1;
+		var count = (options && options.count) || -1;
 		var matchedOnly = options.matchedOnly === "true";
 		var deferred = Q.defer();
 		var self = this;
@@ -191,22 +192,14 @@ _.extend(tripRoutes, {
 		var _from = moment(from).startOf("day").valueOf();
 		var _to = moment(to).endOf("day").valueOf();
 		var self = this;
-		this._searchTripsIndex({q: 'job_id:"-" AND NOT org_ts:[' + _to + ' TO Infinity] AND NOT last_ts:[0 TO ' + _from + ']', include_docs: true})
+		this._searchTripsIndex({q: '*:* AND NOT org_ts:[' + _to + ' TO Infinity] AND NOT last_ts:[0 TO ' + _from + ']'})
 			.then(function(result){
-				var docs = result.rows.map(function(row){
-					var doc = row.doc;
-					doc = _.extend(doc, {job_id: job_id});
-					return doc;
+				var tripIds = result.rows.map(function(row){
+					return row.id;
 				});
-				Q.when(self.db, function(db){
-					db.bulk({docs: docs}, "insert", function(err, body){
-						if(err){
-							console.error("set job_id failed");
-						}else{
-							debug("set job_id succeeded");
-						}
-					});
-				});
+				if (tripIds.length > 0) {
+					self.setJobIdToStatus(job_id, tripIds);
+				}
 			});
 	},
 	/**
@@ -214,7 +207,7 @@ _.extend(tripRoutes, {
 	 */
 	setJobStatus: function(job_id, status){
 		var self = this;
-		this._searchTripsIndex({q: "job_id:" + job_id, include_docs: true})
+		this._searchJobStatusIndex({q: "job_id:" + job_id, include_docs: true})
 			.then(function(result){
 				var docs = result.rows.map(function(row){
 					var doc = row.doc;
@@ -234,6 +227,76 @@ _.extend(tripRoutes, {
 				});
 			});
 	},
+	
+	setJobIdToStatus: function(job_id, tripIds) {
+		var self = this;
+		var deferred = Q.defer();
+		Q.when(this.db, function(db){
+			var query = {q: _.map(tripIds, function(id) {return 'trip_id:' + id;}).join(' '), include_docs: true};
+			self._searchJobStatusIndex(query).then(function(result) {
+				// add new parameters and update docs
+				var withJobId = {}, withoutJobId = {};
+				result.rows.forEach(function(row){
+					if(row.doc.job_id === "-"){
+						var doc = row.doc;
+						doc = _.extend(doc, {job_id: job_id});
+						withoutJobId[row.doc.trip_id] = row.doc;
+					}else{
+						withJobId[row.doc.trip_id] = row.doc;
+					}
+				});
+				var updatedDocs = tripIds.filter(function(tripId){
+					return !withJobId[tripId] && !withoutJobId[tripId];
+				}).map(function(tripId){
+					return {
+						_id: JOB_STATUS_PREFIX + tripId,
+						type: "job_status",
+						trip_id: tripId,
+						job_id: job_id,
+						job_status: driverInsightsAnalyze.TRIP_ANALYSIS_STATUS.NOT_STARTED
+					}
+				}).concat(withoutJobId);
+				Q.when(self.db, function(db){
+					db.bulk({docs: updatedDocs}, "insert", function(err, body){
+						if(err){
+							console.error("set job_id failed");
+						}else{
+							debug("set job_id succeeded");
+						}
+					});
+				});
+			});
+		});
+		return deferred.promise;
+	},
+	getJobStatus: function(trip_id) {
+		var deferred = Q.defer();
+		var self = this;
+		Q.when(self.db, function(db){
+			var job_id = JOB_STATUS_PREFIX + trip_id;
+			db.get(job_id, function(err, body){
+				if(err){
+					if(err.statusCode === 404){
+						deferred.resolve({
+							_id: JOB_STATUS_PREFIX + trip_id,
+							type: "job_status",
+							trip_id: trip_id,
+							job_status: driverInsightsAnalyze.TRIP_ANALYSIS_STATUS.NOT_STARTED
+						});
+					}else{
+						console.error(err);
+						deferred.reject(err);
+						return;
+					}
+				}
+				deferred.resolve(body)
+			});
+		})["catch"](function(error){
+			console.error(error);
+			deferred.reject(error);
+		});
+		return deferred.promise;
+	},
 
 	getTripsByDevice: function(deviceID, limit){
 		return this._searchTripsIndex({q:'deviceID:'+deviceID, sort: '-org_ts', limit:(limit||5)})
@@ -242,9 +305,15 @@ _.extend(tripRoutes, {
 			});
 	},
 	_searchTripsIndex: function(opts){
+		return this._searchIndex('trips', opts);
+	},
+	_searchJobStatusIndex: function(opts){
+		return this._searchIndex('job_status', opts);
+	},
+	_searchIndex: function(indexName, opts){
 		return Q(this.db).then(function(db){
 			var deferred = Q.defer();
-			db.search(TRIPROUTES_DB_NAME, 'trips', opts, function(err, result){
+			db.search(TRIPROUTES_DB_NAME, indexName, opts, function(err, result){
 				if (err)
 					return deferred.reject(err);
 				return deferred.resolve(result);
@@ -265,8 +334,13 @@ _.extend(tripRoutes, {
 					index('org_lng', parseFloat(route0.lng), {store:true});
 					index('org_ts', parseFloat(route0.ts), {store:true}); // timestamp in millis
 					index('last_ts', parseFloat(doc.routes[doc.routes.length-1].ts), {store:true});
-					index('job_id', doc.job_id||"-", {store: true});
 				}
+			}
+		};
+		var jobStatusIndexer = function(doc){
+			if (doc.type === "job_status") {
+				index('trip_id', doc.trip_id, {store:true});
+				index('job_id', doc.job_id||"-", {store: true});
 			}
 		};
 		var designDoc = {
@@ -275,6 +349,10 @@ _.extend(tripRoutes, {
 					trips: { 
 						analyzer: {name: 'keyword'},
 						index: deviceTripIndexer.toString()
+					},
+					job_status: {
+						analyzer: {name: 'keyword'},
+						index: jobStatusIndexer.toString()
 					}
 				}
 		};

@@ -23,7 +23,7 @@ var tripRouteCache = {};
 var insertTripRouteTimer = null;
 IOTF.on("+", function(payload, deviceType, deviceId){
 	// check mandatory field
-	if(!payload.trip_id || payload.trip_id.length === 0) return;
+	if(!payload || !payload.trip_id || payload.trip_id.length === 0) return;
 	if(!(payload.matched_longitude && 
 			payload.matched_latitude && 
 			payload.matched_heading && 

@@ -430,6 +430,7 @@ function startImportingDrivingHistories(){
 		});
 		var simulationDir = "./devicesSimulation/data/";
 		fs.readdir(simulationDir, function(err, files){
+			if(!files) return;
 			files.forEach(function(file){
 				if(file.endsWith(".fcd.xml")){
 					simulationImporter.loadFcdSimulation(simulationDir + file);

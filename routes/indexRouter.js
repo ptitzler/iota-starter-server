@@ -13,11 +13,19 @@
 var indexRouter = module.exports = require('express').Router();
 var appEnv = require("cfenv").getAppEnv();
 
-indexRouter.get('/', function(req, res) {
-	res.redirect('/monitoring');
-});
+/*
+ * Implementation for redirecting top page
+ */
+var TOP_PAGE_REDIRECT_URL = process.env['TOP_PAGE_REDIRECT_URL'];
+var TOP_PAGE_REDIRECT_EXEMPTION_URL = process.env['TOP_PAGE_REDIRECT_EXEMPTION_URL'] || TOP_PAGE_REDIRECT_URL;
 
-indexRouter.get('/top', function(req, res) {
+indexRouter.get(['/', '/top'], function(req, res) {
+	if(TOP_PAGE_REDIRECT_URL){
+		var referer = req.headers['referer'];
+		if(!referer || !referer.startsWith(TOP_PAGE_REDIRECT_EXEMPTION_URL)){
+			return res.render('redirect', { url: TOP_PAGE_REDIRECT_URL });
+		}
+	}
 	res.redirect('/monitoring');
 });
 

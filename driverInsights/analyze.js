@@ -265,7 +265,7 @@ _.extend(driverInsightsAnalyze, {
 				if (!error && response.statusCode === 200) {
 					deferred.resolve(JSON.parse(body));
 				} else {
-					var msg = 'analyze: error(_getDetail): ' + body;
+					var msg = 'analyze: error(_getDetail): ' + error;
 					console.error(msg);
 					deferred.reject({message: msg, trip_id: trip_id});
 				}
@@ -292,13 +292,13 @@ _.extend(driverInsightsAnalyze, {
 		var deferred = Q.defer();
 		var self = this;
 		
-		driverInsightsTripRoutes.getTripRouteRaw(trip_id)
-			.then(function(tripRoute){
-				var job_status = tripRoute.job_status;
+		driverInsightsTripRoutes.getJobStatus(trip_id)
+			.then(function(jobStatus){
+				var job_status = jobStatus.job_status;
 				if(job_status && job_status.id !== self.TRIP_ANALYSIS_STATUS.NOT_STARTED.id && job_status.id !== self.TRIP_ANALYSIS_STATUS.PENDING.id){
-					deferred.resolve(tripRoute.job_status);
-				}else if(tripRoute.job_id){
-					self.refreshTripAnalysisStatus(tripRoute.job_id).then(function(status){
+					deferred.resolve(jobStatus.job_status);
+				}else if(jobStatus.job_id){
+					self.refreshTripAnalysisStatus(jobStatus.job_id).then(function(status){
 						deferred.resolve(status);
 					});
 				}else{
@@ -763,7 +763,9 @@ _.extend(driverInsightsAnalyze, {
 									// Delete me when I'm contained in the other job
 									deleteJobId = watchedId;
 								}
-								self.deleteJobResult(deleteJobId, function(body){});
+								if (deleteJobId) {
+									self.deleteJobResult(deleteJobId, function(body){});
+								}
 							}
 						});
 						self.watchingJobs.splice(index, 1); // watchingJobs.forEach must be finished before any getJobInfo callback
