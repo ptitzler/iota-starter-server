@@ -343,6 +343,9 @@ function setWeatherNotification(reservation){
 					debug("weatherResult: " + JSON.stringify(weatherResult));
 					if(weatherResult.length > 0){
 						if(weatherResult[0].qpf > THRESHOLD_TO_NOTIFY_RAIN || weatherResult[0].snow_qpf > THRESHOLD_TO_NOTIFY_SNOW){
+							var userVcapSvc = JSON.parse(process.env.USER_PROVIDED_VCAP_SERVICES || '{}');
+							var mca = userVcapSvc.AdvancedMobileAccess || VCAP_SERVICES.AdvancedMobileAccess;
+							var mcaTenantId = (mca && mca.length > 0 && mca[0].credentials && mca[0].credentials.tenantId) || "";
 							notificationUtils.sendMessage(
 									weatherResult[0].phrase_32char + " is expected at drop-off time. You might want to drop-off the car 20 minutes earlier than reservation to avoid " + weatherResult[0].phrase_32char + ".",
 									notificationUtils.CATEGORY_OK,
@@ -350,8 +353,9 @@ function setWeatherNotification(reservation){
 										"reservationId": reservation.reservationId || reservation._id,
 										"type": "weather",
 										"appRoute": appEnv.url,
-										"appGUID": BM_APPLICATION_ID,
-										"customAuth": VCAP_SERVICES.AdvancedMobileAccess ? "true" : ""
+										"pushAppGuid": notificationUtils.notificationConfig.appGuid,
+										"pushClientSecret": notificationUtils.notificationConfig.clientSecret,
+										"mcaTenantId": mcaTenantId
 									},
 									[reservation.deviceId]
 							);

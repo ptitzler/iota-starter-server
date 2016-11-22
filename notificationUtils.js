@@ -22,7 +22,9 @@ var notificationUtils = {
 			var imfCreds = vcapSvc[0].credentials;
 			return {
 				baseURL: imfCreds.url,
-				appSecret: imfCreds.appSecret
+				appGuid: imfCreds.appGuid,
+				appSecret: imfCreds.appSecret,
+				clientSecret: imfCreds.clientSecret
 			};
 		}
 		console.warn('Push Notification service is not bound.');

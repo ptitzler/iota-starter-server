@@ -40,16 +40,21 @@ var authenticate = function(req,res,next){
  */
 router.get('/qr/getPlatformCredentials', /*authenticate,*/ function(req, res) {
 	var route = appEnv.url;
-	var guid = appEnv.app.application_id;
-	var mca_auth = (process.env.MCA_AUTHENTICATION === "true") ? "true" : "false";
-	
-	var text;
-	if (mca_auth == "false") {
-		text = ['1', route, guid].join(',');
-	} else {
-		text = ['1', route, guid, mca_auth].join(',');
+	var userVcapSvc = JSON.parse(process.env.USER_PROVIDED_VCAP_SERVICES || '{}');
+
+	var imfpush = userVcapSvc.imfpush || VCAP_SERVICES.imfpush;
+	var pushAppGuid = (imfpush && imfpush.length > 0 && imfpush[0].credentials && imfpush[0].credentials.appGuid) || "";
+	var pushClientSecret = (imfpush && imfpush.length > 0 && imfpush[0].credentials && imfpush[0].credentials.clientSecret) || "";
+
+	var mca = userVcapSvc.AdvancedMobileAccess || VCAP_SERVICES.AdvancedMobileAccess;
+	var mcaTenantId = (mca && mca.length > 0 && mca[0].credentials && mca[0].credentials.tenantId) || "";
+
+	if(mcaTenantId != ""){
+		var text = ["1", route, pushAppGuid, pushClientSecret, mcaTenantId].join(",");
+	}else{
+		var text = ["1", route, pushAppGuid, pushClientSecret].join(",");
 	}
-	
+
 	var img = qr.image(text, { type: 'png', ec_level: 'H', size: 3, margin: 0 });
 	res.writeHead(200, {'Content-Type': 'image/png'})
 	img.pipe(res);
