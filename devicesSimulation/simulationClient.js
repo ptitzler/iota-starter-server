@@ -521,7 +521,7 @@ function callSimulationEngineAPI(method, paths, body){
 			// use simulation engine in this application. 
 			simulationCreds.uri = appEnv.url + "/api";
 		}
-		console.log("!!! connecting to simulation engine using credentials from USER_PROVIDED_VCAP_SERVICES !!! : " + simulationCreds.url);
+		console.log("!!! connecting to simulation engine using credentials from USER_PROVIDED_VCAP_SERVICES !!! : " + simulationCreds.uri);
 	} else {
 		// use simulation engine in this application. 
 		// apiKey and apiToken should be same as values defined in deviceSimulationEngine/api.js
