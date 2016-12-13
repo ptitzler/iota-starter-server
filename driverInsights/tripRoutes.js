@@ -136,7 +136,7 @@ _.extend(tripRoutes, {
 	},
 	getTripRouteById: function(trip_id, options){
 		var count = (options && options.count) || -1;
-		var matchedOnly = options.matchedOnly === "true";
+		var matchedOnly = options && options.matchedOnly === "true";
 		var deferred = Q.defer();
 		var self = this;
 		Q.when(self.db, function(db){

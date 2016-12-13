@@ -83,7 +83,7 @@ CloudantDeferred.prototype.ensureDB = function(dbName){
 
 CloudantDeferred.prototype.updateDesignDoc = function(designDoc){
 	if(!designDoc) return Q();
-	if(!designDoc._id) return Q.rejecct(new Error('Missing _id property in the design doc'));
+	if(!designDoc._id) return Q.reject(new Error('Missing _id property in the design doc'));
 	
 	return this.db.then(function(db){
 		var deferred = Q.defer();

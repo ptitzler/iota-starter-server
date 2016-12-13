@@ -1,6 +1,6 @@
 {
     "name": "iot-automotive-starter",
-    "version": "1.3.1",
+    "version": "1.3.2",
     "description": "IoT for Automotive Starter Application Server",
     "scripts": {
         "start": "node app.js"

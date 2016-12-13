@@ -49,11 +49,7 @@ router.get('/qr/getPlatformCredentials', /*authenticate,*/ function(req, res) {
 	var mca = userVcapSvc.AdvancedMobileAccess || VCAP_SERVICES.AdvancedMobileAccess;
 	var mcaTenantId = (mca && mca.length > 0 && mca[0].credentials && mca[0].credentials.tenantId) || "";
 
-	if(mcaTenantId != ""){
-		var text = ["1", route, pushAppGuid, pushClientSecret, mcaTenantId].join(",");
-	}else{
-		var text = ["1", route, pushAppGuid, pushClientSecret].join(",");
-	}
+	var text = ["1", route, pushAppGuid, pushClientSecret, mcaTenantId].join(",");
 
 	var img = qr.image(text, { type: 'png', ec_level: 'H', size: 3, margin: 0 });
 	res.writeHead(200, {'Content-Type': 'image/png'})
