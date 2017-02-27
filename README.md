@@ -349,6 +349,9 @@ The tracked data is collected from the `VCAP_APPLICATION` and `VCAP_SERVICES` en
 
 You can disable the Deployment Tracking feature by removing `require("cf-deployment-tracker-client").track();` from the beginning of the `app.js` main server file.
 
+## Questions, comments or suggestions
+For your questions, comments or suggestions to us, visit [Watson IoT for Automotive Application community site] (https://www.ibm.com/developerworks/community/groups/service/html/communitystart?communityUuid=3b06ca1c-fd7c-4a59-a888-e5e3a8384091).
+
 ## Useful links
 [IBM Bluemix](https://bluemix.net/)  
 [IBM Bluemix Documentation](https://www.ng.bluemix.net/docs/)  
