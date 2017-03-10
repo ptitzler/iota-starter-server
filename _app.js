@@ -405,16 +405,29 @@ function startSimulation(){
 	})
 	.then(function(){
 		// terminate simulation engine
-		console.log('Restarting the simulation engine...');
+		console.log('Terminating the simulation engine...');
 		return simulationClient.terminateSimulation()['catch'](function(err){ /*ignore*/ });
 	})
 	.then(function(){
 		// start simulation engine
-		_.delay(function(){
-			simulationClient.startSimulation();
-		}, 2000);
+		_startSimulation();
 	})
 	.done();
+}
+
+var retryCount = 3;
+var retryInterval = 5000;
+function _startSimulation() {
+	_.delay(function(){
+		console.log('Starting the simulation engine...');
+		Q.when(simulationClient.startSimulation()).then(function() {
+			console.log('the simulation engine started');
+		})["catch"](function(err){
+			if (--retryCount > 0) {
+				_startSimulation();
+			}
+		});
+	}, retryInterval);
 }
 
 function startImportingDrivingHistories(){
@@ -476,30 +489,41 @@ devicesCache.registeredDevicesDoc = {_id: "registeredDevices", devices: []};
  * - Load simulated devices from the `this.registeredDevicesDoc` document, and add them to the simulation engine
  */
 devicesCache.loadDevices = function(filepath){
-	var deferred = Q.defer();
 	var _this = this;
-	DB.get("registeredDevices",null,function(err,doc){
-		if(!err){
-			_this.registeredDevicesDoc = doc;
-			_this.freeDevices = _.groupBy(_this.registeredDevicesDoc.devices, 'archDeviceGuid');
-			_this.registeredDevicesDoc.devices.forEach(function(device){
-				debug('Resuming device simulation... deviceID: ' + device.deviceID);
-				simulationClient.addDevice(device);
-			});
-			deferred.resolve();
-		}
-		else if(err.error == 'not_found')
-			deferred.resolve(); //no such doc yet
-		else
-			deferred.reject();
-	});
+	
+	var _loadDevices = function() {
+		var deferred = Q.defer();
+		DB.get("registeredDevices",null,function(err,doc){
+			if(!err){
+				_this.registeredDevicesDoc = doc;
+				_this.freeDevices = _.groupBy(_this.registeredDevicesDoc.devices, 'archDeviceGuid');
+				_this.registeredDevicesDoc.devices.forEach(function(device){
+					debug('Resuming device simulation... deviceID: ' + device.deviceID);
+					simulationClient.addDevice(device);
+				});
+				deferred.resolve();
+			}
+			else if(err.error == 'not_found')
+				deferred.resolve(); //no such doc yet
+			else
+				deferred.reject();
+		});
+		return deferred.promise;
+	}
+	
+	return Q.when("loadDevice")
+		.then(_loadDevices)
+		.then(this._cleanupIoTPlatformDevices)
+		['catch'](function(error){
+			console.error('failed to load devices: ', error);
+		});
 	
 	// schedule unreferenced IoT Platform devices cleanup process
-	setTimeout((function(){
-		deferred.promise.then(this._cleanupIoTPlatformDevices()).done();
-	}).bind(this), 10000);
-	
-	return deferred.promise;
+//	setTimeout((function(){
+//		deferred.promise.then(this._cleanupIoTPlatformDevices()).done();
+//	}).bind(this), 10000);
+//	
+//	return deferred.promise;
 };
 
 /*
@@ -774,7 +798,7 @@ function getRandomLocation(latitude, longitude, radiusInMeters) {
 (function(){
 	// enable car simulation
 	if (!DISABLE_DEMO_CAR_DEVICES){
-		startSimulation()
+		startSimulation();
 		// set simulated cars for the reservation router
 		var deviceRouter = require('./routes/user/device.js');
 		deviceRouter.onGetCarsNearbyAsync = onGetCarsNearbyAsync;

@@ -467,6 +467,9 @@ var devices = {
 		}, function(error) {
 			console.error(error);
 			deferred.reject(error);
+		})['catch'](function(e){
+			console.error('Error in removing credentials: ', e);
+			deferred.reject(e);
 		});
 		return deferred.promise;
 	},

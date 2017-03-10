@@ -80,12 +80,19 @@ simulationClient.prototype.saveSimulationConfig = function(path){
 simulationClient.prototype.startSimulation = function(){
 	var _this = this;
 	var body = {simulationConfig: this.simulationConfig};
-	return callSimulationEngineAPI("POST", ["startSimulation"], body).then(function (resp){
-		return _this.createws(resp.wsurl);
+	var deferred = Q.defer();
+	callSimulationEngineAPI("POST", ["startSimulation"], body).then(function (resp){
+		Q.when(_this.createws(resp.wsurl)).then(function() {
+			deferred.resolve();
+		})["catch"](function(err){
+			deferred.reject(err);
+		});
 	})["catch"](function(err){
 		console.error(err.message);
-		throw new Error("Cannot start simulation " + err.message);
+		deferred.reject(err);
+//		throw new Error("Cannot start simulation " + err.message);
 	});
+	return deferred.promise;
 };
 
 simulationClient.prototype.terminateSimulation = function(deregisterDevices){
