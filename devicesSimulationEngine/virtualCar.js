@@ -18,6 +18,8 @@ var virtualDevice = require('./virtualDevice.js');
 var chance = require('chance')();
 var contextMapping = require('../driverInsights/contextMapping.js');
 
+var MAX_TRIP_LENGTH = new Number(process.env.MAX_TRIP_LENGTH || 15 * 60 * 1000);
+var IDLE_MESSAGE_INTERVAL_SEC = new Number(process.env.IDLE_MESSAGE_INTERVAL_SEC || 60);
 
 function virtualCar(deviceModel, deviceInstance, connect){
 	// Initialize necessary properties from `virtualDevice` in this instance
@@ -26,6 +28,7 @@ function virtualCar(deviceModel, deviceInstance, connect){
 	// override
 	this.onRunningCode = virtualCar.prototype.onRunningCode;
 	this.onMessageReceptionCode = virtualCar.prototype.onMessageReceptionCode;
+	this.getPeriodicMesasgeRateRatio = virtualCar.prototype.getPeriodicMesasgeRateRatio;
 	
 	//
 	this._resetTrip();
@@ -34,11 +37,17 @@ function virtualCar(deviceModel, deviceInstance, connect){
 //Inherit functions from `virtualDevice`'s prototype
 nodeUtils.inherits(virtualCar, virtualDevice);
 
+virtualCar.prototype.getPeriodicMesasgeRateRatio = function(name, defaultRate) {
+	if (name === "sendGeoPos")
+		return this.trip_id ? defaultRate : IDLE_MESSAGE_INTERVAL_SEC;
+	return defaultRate;
+};
+
 /*
 * Called while driving state
 */
 virtualCar.prototype.onRunningCode = function(){
-	if(this.status=="Unlocked" && this.tripRoute.length > 0){
+	if(this.status=="Unlocked" && this.tripRoute.length > 0 && this.trip_id){
 		if(this.tripReverse){
 			this.tripRouteIndex--;
 			if(this.tripRouteIndex < 0){
@@ -90,7 +99,7 @@ virtualCar.prototype.onMessageReceptionCode = function(args){
 	var message = args.message;
 	if(message == "lock"){
 		this.status = "Locked";
-		this.trip_id = undefined;
+		this._stopTrip();
 	}else if(message == "unlock"){
 		this.status = "Unlocked";
 		// recalculate trip
@@ -111,15 +120,46 @@ virtualCar.prototype.onMessageReceptionCode = function(args){
 					this.trip_id = undefined;
 					console.log("Simulation car(" + this.deviceID + ") trip_id has NOT assigned as a pre-simulated trip [" + trip.trip_id + "] exists.");
 				}else{
-					this.trip_id = chance.guid();
-					console.log("Simulation car(" + this.deviceID + ") trip_id assigned: " + this.trip_id);
+					this._startTrip();
 				}
 			}).bind(this)).done();
 		}else{
-			this.trip_id = chance.guid();
-			console.log("Simulation car(" + this.deviceID + ") trip_id assigned: " + this.trip_id);
+			this._startTrip();
 		}
 	}
+};
+
+virtualCar.prototype._startTrip = function() {
+	this.trip_id = chance.guid();
+	console.log("Simulation car(" + this.deviceID + ") trip_id assigned: " + this.trip_id);
+	
+	// restart periodic messages
+	this.stopPeriodicMessages();
+	this.startPeriodicMessages();
+	
+	if (MAX_TRIP_LENGTH > 0) {
+		var _this = this;
+		this.tripHandle = setTimeout(function() {
+			delete this.tripHandle;
+			_this._stopTrip(true);
+			console.log("trip is automatically stopped. timeout=" + MAX_TRIP_LENGTH);
+		}, MAX_TRIP_LENGTH);
+	}
+};
+
+virtualCar.prototype._stopTrip = function(clearTrip) {
+	this.trip_id = undefined;
+	if (this.tripHandle) {
+		clearTimeout(this.tripHandle);
+		delete this.tripHandle
+	}
+	if (clearTrip) {
+		this._resetTrip();
+	}
+	
+	// restart periodic messages
+	this.stopPeriodicMessages();
+	this.startPeriodicMessages();
 };
 
 /*

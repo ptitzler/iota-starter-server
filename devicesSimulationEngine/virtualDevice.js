@@ -247,17 +247,25 @@ virtualDevice.prototype.stopPeriodicAction = function(){
 virtualDevice.prototype.startPeriodicMessages = function(){
 	if(this.periodicMessagesIntervals)
 		return;//already running
+	
 	this.periodicMessagesIntervals = [];
 	var _this = this;
 	_.each(this.mqttOutputs, function(outPutMsg){
 		if(outPutMsg.patternType == 'Periodic'){
 			var rate = (outPutMsg.patternRate) ? outPutMsg.patternRate : 1;
-			var intervalID = setInterval(function(){
-				_this.sendMessage(outPutMsg.name);
-			}, rate * 1000);
-			this.periodicMessagesIntervals.push(intervalID);
+			if (_this.getPeriodicMesasgeRateRatio) {
+				rate = _this.getPeriodicMesasgeRateRatio(outPutMsg.name, rate) || rate;
+				console.log("message rate is set to " + rate);
+			}
+			if (rate > 0) {
+				var intervalID = setInterval(function(){
+					_this.sendMessage(outPutMsg.name);
+				}, rate * 1000);
+				this.periodicMessagesIntervals.push(intervalID);
+			}
 		}
 	}, this);
+	console.log("periodic messages started");
 };
 
 virtualDevice.prototype.stopPeriodicMessages = function(){
@@ -265,6 +273,7 @@ virtualDevice.prototype.stopPeriodicMessages = function(){
 		clearInterval(intervalID);
 	});
 	this.periodicMessagesIntervals = null;
+	console.log("periodic messages stopped");
 };
 
 virtualDevice.prototype.connect = function(){
