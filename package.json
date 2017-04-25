@@ -32,7 +32,7 @@
         "qr-image": "3.1.0",
         "xml2js": "0.4.9",
         "ibmiotf": "0.2.12",
-        "cf-deployment-tracker-client": "0.0.x"
+        "cf-deployment-tracker-client": "^0.x"
     },
     "repository": {
         "type": "git",
